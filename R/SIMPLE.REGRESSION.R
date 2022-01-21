@@ -14,12 +14,14 @@ SIMPLE.REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
 
 
 if (!is.null(forced))  {
-	donnes <- na.omit(data[,c(DV,forced)])
+	donnes <- data[,c(DV,forced)]	
+	if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
 	formMAIN <- as.formula(paste(DV, paste(forced, collapse=" + "), sep=" ~ "))
 }
 
 if (!is.null(hierarchical))  {
-	donnes <- na.omit(data[,c(DV,unlist(hierarchical))])
+	donnes <- data[,c(DV,unlist(hierarchical))]
+	if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
 }
 
 if (!is.null(IV) & !is.null(MOD)) {
@@ -28,7 +30,10 @@ if (!is.null(IV) & !is.null(MOD)) {
 
 	if (MOD_type == 'factor' & !is.factor(data[,MOD])) data[,MOD] <- factor(data[,MOD])
 
-	donnes <- na.omit(data[,c(DV,IV,MOD,COVARS)])
+	donnes <- data[,c(DV,IV,MOD,COVARS)]
+	
+	if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
+
 	modreg <- TRUE
 	formMAIN <- as.formula(paste(DV, paste(c(IV,MOD,COVARS), collapse=" + "), sep=" ~ "))
 } else { modreg <- FALSE }
@@ -62,6 +67,9 @@ if (modreg) {
 	IV_type <- 'factor'
 	}
 }
+
+
+if (NAflag) cat('\n\nCases with missing values were found and removed from the data matrix.\n\n')
 
 
 # centering, if requested (only for modreg)
@@ -211,11 +219,11 @@ if (!is.null(hierarchical)) {
 		 
 		if (lupe > 1) preds <- c(preds, unlist(hierarchical[lupe]))
 
-		donnes <- na.omit(data[,c(DV,preds)])
+		donnesH <- donnes[,c(DV,preds)]
 
 		formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
 		
-		modelMAIN <- lm(formMAIN, data=donnes, model=TRUE, x=TRUE, y=TRUE)
+		modelMAIN <- lm(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE)
 
 		modelMAINsum <- summary(modelMAIN)
 
