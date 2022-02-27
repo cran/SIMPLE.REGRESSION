@@ -1,8 +1,8 @@
-8a808bb0707701db9d211bfcb83f7b0b *DESCRIPTION
+67a42c6d3f46273589845db2e902bb8b *DESCRIPTION
 137991779402c6b9ea874ad0b717e643 *NAMESPACE
 2d42cdc595eb64861601be69be1631aa *R/PARTIAL_COEFS.R
-2a192e329a2b7eddf4aced202d2ec770 *R/REGIONS_OF_SIGNIFICANCE.R
-260ed05b997b3459a6b344c8badb5b87 *R/SIMPLE.REGRESSION.R
+e59106e1391f66c7fc3d78a39b7c4304 *R/REGIONS_OF_SIGNIFICANCE.R
+548d89f0c9eb6849d9625a73a98059be *R/SIMPLE.REGRESSION.R
 9c716e47c6f5169b4dce57ed06719671 *R/boc.R
 0cbdf5b5c8465400b7c7d0bbfacbdbfd *data/data_Bauer_Curran_2005.rda
 3fe760e5755e27dc4613f66a8f6ca778 *data/data_Bodner_2016.rda
@@ -12,11 +12,12 @@
 0f6c7d492dbd212bf0a9470df773c7d9 *data/data_Green_Salkind_2008.rda
 bfff631334b3de3afdb922b62a2d1c5b *data/data_Huitema_2011.rda
 8e31ebf8ebe04453d4a321be6ba2aea4 *data/data_Lorah_Wong_2018.rda
+195fc02eeca35f09e64901ed276e5e64 *data/data_OConnor_Dvorak_2001.rda
 a771f3c547878c257caca5f85c557154 *data/data_Pedhazur_1997.rda
 47b96eb89fa3f8c65fc0235bac252acd *man/PARTIAL_COEFS.Rd
-391e4a41cb0f83fe8bb5060b8405afee *man/REGIONS_OF_SIGNIFICANCE.Rd
+f962faa941f901f30ff3d273e80c2656 *man/REGIONS_OF_SIGNIFICANCE.Rd
 bf4bd13e97a772d1866700fd74ae7ece *man/SIMPLE.REGRESSION-package.Rd
-ba2f2d9c8c0f6ba7fc1fb7fe25837ec8 *man/SIMPLE.REGRESSION.Rd
+833d8d0333b370cbd9bd3e9a644d1a6f *man/SIMPLE.REGRESSION.Rd
 948c7ddf3488cabb5bd94257ccb0d481 *man/data_Bauer_Curran_2005.Rd
 643d942fd07158966d6885b85f93e895 *man/data_Bodner_2016.Rd
 c311e71135f096d91a94791d46c02b09 *man/data_Chapman_Little_2016.Rd
@@ -25,4 +26,5 @@ bdfde7dde2e701a8ea3e23df892c67ba *man/data_Cohen_Aiken_West_2003_7.Rd
 3ef1a5ec459c04a95092cab9dca06440 *man/data_Green_Salkind_2008.Rd
 5b91dca3fab7fad8a51640de947316b8 *man/data_Huitema_2011.Rd
 65354d8ad91de98c894caef631806911 *man/data_Lorah_Wong_2018.Rd
+807a64359e8670f1adad8e3ea9f9c6c7 *man/data_OConnor_Dvorak_2001.Rd
 936d9cf6c1215023f95a75aa6e6e7c10 *man/data_Pedhazur_1997.Rd

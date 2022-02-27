@@ -32,7 +32,7 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
 
 
 
-if (class(model) == 'SIMPLE.REGRESSION') {
+if (inherits(model, 'SIMPLE.REGRESSION')) {    # if (class(model) == 'SIMPLE.REGRESSION') {
 	
 DV  <- model$DV
 IV  <- model$IV
@@ -55,7 +55,7 @@ if (is.null(JN.data)) {
 
 
 
-if (class(model) == 'lme') {
+if (inherits(model, 'lme')) {   # if (class(model) == 'lme') {
 
 	rawdata <- getData(model)
 

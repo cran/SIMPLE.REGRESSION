@@ -12,7 +12,7 @@
         MOD=NULL, MOD_type = 'numeric', MOD_levels='quantiles', MOD_range=NULL,
         quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
         CENTER = TRUE, COVARS=NULL,
-        PLOT_type = 'regions', PLOT_title=NULL,
+        PLOT_type = NULL, PLOT_title=NULL, DV_range=NULL,
         Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
         JN_type = 'Huitema', verbose=TRUE )
 }
@@ -97,12 +97,16 @@
   analysis, e.g., \cr COVARS = c('CovarA', 'CovarB', 'CovarC').}
   	    
   \item{PLOT_type}{
-  \code{}(optional)  The kind of plot for a moderated regression. The options are 'interaction'
-  for a traditional interaction plot, 
-  and 'regions', for a Johnson-Neyman regions of significance plot.}
+  \code{}(optional)  The kind of plot. The options are 'residuals' (the default),
+  'interaction' (for a traditional moderated regression interaction plot), 
+  and 'regions' (for a moderated regression Johnson-Neyman regions of significance plot).}
 
   \item{PLOT_title}{
   \code{}(optional)  The plot title for a moderated regression.}
+  
+  \item{DV_range}{
+  \code{}(optional)  The range of Y-axis values for a moderated regression interaction plot, 
+  e.g., DV_range = c(1,10).}
   
   \item{Xaxis_label}{
   \code{}(optional)  A label for the X axis to be used in the requested plot.}
@@ -149,7 +153,10 @@
 \item{ros}{The Johnson-Neyman regions of significance for a moderated regression.}
 }
 \references{
-       {Cohen, J., Cohen, P., West, S. G., & Aiken, L. S. (2003). \emph{Applied 
+       {Bodner, T. E. (2016). Tumble graphs: Avoiding misleading end point extrapolation when  
+       	graphing interactions from a moderated multiple regression analysis. 
+       	\emph{Journal of Educational and Behavioral Statistics, 41,} 593-604.}
+\cr\cr {Cohen, J., Cohen, P., West, S. G., & Aiken, L. S. (2003). \emph{Applied 
 	    multiple regression/correlation analysis for the behavioral sciences} (3rd ed.). 
 	    Lawrence Erlbaum Associates Publishers.}
 \cr\cr {Darlington, R. B., & Hayes, A. F. (2017). \emph{Regression analysis and linear models: 
@@ -162,7 +169,7 @@
 \cr\cr {Pedhazur, E. J. (1997). \emph{Multiple regression in behavioral research: Explanation 
    and prediction.} (3rd ed.). Fort Worth, Texas: Wadsworth Thomson Learning}
 }
-\author{Brian P. O'Connor }
+\author{Brian P. O'Connor}
 \examples{
 # forced (simultaneous) entry
 head(data_Green_Salkind_2008)
@@ -175,15 +182,43 @@ SIMPLE.REGRESSION(data=data_Green_Salkind_2008, DV='injury',
                   hierarchical = list( step1=c('quads','gluts','abdoms'), step2=c('arms','grip')) )
 		
 
-# moderated regression	
+# moderated regression	-- with IV_range = 'AikenWest'
+head(data_Lorah_Wong_2018)
+SIMPLE.REGRESSION(data=data_Lorah_Wong_2018, DV='sis',
+       IV='burden', IV_type = 'numeric', IV_range='AikenWest',
+       MOD='belong', MOD_type = 'numeric', MOD_levels='quantiles', MOD_range=NULL,
+       quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
+       CENTER = TRUE, COVARS='dep', 
+       PLOT_type = 'interaction', PLOT_title=NULL, DV_range = c(1,1.25),  # 'regions'
+       Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
+       JN_type = 'Huitema', verbose=TRUE ) 
+
+
+# moderated regression	-- with  IV_range = 'tumble'
 head(data_Lorah_Wong_2018)
 SIMPLE.REGRESSION(data=data_Lorah_Wong_2018, DV='sis',
        IV='burden', IV_type = 'numeric', IV_range='tumble',
        MOD='belong', MOD_type = 'numeric', MOD_levels='quantiles', MOD_range=NULL,
        quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
        CENTER = TRUE, COVARS='dep', 
-       PLOT_type = 'regions', PLOT_title=NULL, 
+       PLOT_type = 'interaction', PLOT_title=NULL, DV_range = c(1,1.25),   # 'regions'
        Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
        JN_type = 'Huitema', verbose=TRUE ) 
+       
+       
+# moderated regression	-- with numeric values for IV_range & MOD_levels='AikenWest'       
+SIMPLE.REGRESSION(data=data_OConnor_Dvorak_2001, DV='Aggressive_Behavior',
+       IV='Maternal_Harshness', IV_type = 'numeric', IV_range=c(1,7.7), 
+       MOD='Resiliency', MOD_type = 'numeric', MOD_levels='AikenWest', MOD_range=NULL,
+       quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
+       CENTER = FALSE, COVARS=NULL, 
+       PLOT_type = 'interaction', 
+       PLOT_title=NULL, 
+       DV_range = c(1,6), 
+       Xaxis_label='Maternal Harshness', 
+       Yaxis_label='Adolescent Aggressive Behavior', 
+       LEGEND_label='Resiliency',
+       JN_type = 'Huitema', verbose=TRUE ) 
+       
 }
 }

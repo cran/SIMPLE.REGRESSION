@@ -104,5 +104,30 @@ REGIONS_OF_SIGNIFICANCE(model=HSBmod,
         IV_range=NULL, MOD_range=NULL, 
         PLOT_title=NULL, Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
         namesIVMOD_raw=NULL, namesIVMOD_model=NULL) 
+
+
+# moderated regression	-- with numeric values for IV_range & MOD_levels='AikenWest'       
+mharsh_agg <- SIMPLE.REGRESSION(data=data_OConnor_Dvorak_2001, DV='Aggressive_Behavior',
+       IV='Maternal_Harshness', IV_type = 'numeric', IV_range=c(1,7.7), 
+       MOD='Resiliency', MOD_type = 'numeric', MOD_levels='AikenWest', MOD_range=NULL,
+       quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
+       CENTER = FALSE, COVARS=NULL, 
+       PLOT_type = 'interaction', 
+       PLOT_title=NULL, 
+       DV_range = c(1,6), 
+       Xaxis_label='Maternal Harshness', 
+       Yaxis_label='Adolescent Aggressive Behavior', 
+       LEGEND_label='Resiliency',
+       JN_type = 'Huitema', verbose=TRUE ) 
+
+REGIONS_OF_SIGNIFICANCE(model=mharsh_agg,  
+        IV_range=NULL, 
+        MOD_range='minmax', 
+        PLOT_title='Slopes of Maternal Harshness on Aggression by Resiliency', 
+        Xaxis_label='Resiliency', 
+        Yaxis_label='Slopes of Maternal Harshness on Aggressive Behavior ', 
+        LEGEND_label=NULL,
+        namesIVMOD_raw=NULL, 
+        namesIVMOD_model=NULL) 
 }
 }

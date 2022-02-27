@@ -5,13 +5,20 @@ SIMPLE.REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                         MOD=NULL, MOD_type = 'numeric', MOD_levels='quantiles', MOD_range=NULL,
                         quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                         CENTER = TRUE, COVARS = NULL, 
-                        PLOT_type = 'regions', PLOT_title=NULL, 
+                        PLOT_type = NULL, PLOT_title=NULL, DV_range=NULL,
                         Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
                         JN_type = 'Huitema', verbose=TRUE ) {
 
 
 "<-<-" <- NULL   # need this or else get "no visible global function definition for '<-<-' " on R CMD check
 
+
+if (is.null(PLOT_type))  PLOT_type = 'residuals'
+
+if (is.numeric(IV_range)) {
+	IV_range_user <- IV_range
+	IV_range <- 'numeric'
+}
 
 if (!is.null(forced))  {
 	donnes <- data[,c(DV,forced)]	
@@ -90,23 +97,26 @@ allIVnoms <- allIVnoms[-1]
 
 donnesRED <- donnes[c(DV,allIVnoms)]  # a version of donnes that contains only the variables in the analyses
 
-# descriptives for numeric variables
-donnesNUM <- donnes[sapply(donnesRED,is.numeric)] # selecting only numeric variables
-if (ncol(donnesNUM) != 0) {
-	minmax <- t(apply(donnesNUM, 2, range))
-	descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), Min=minmax[,1], Max=minmax[,2]) 
-	message('\n\nDescriptives for the numeric variables:\n')
-	print(round(descs,2), print.gap=4)
-}
 
-# frequencies for factors
-donnesFAC <- donnes[sapply(donnesRED,is.factor)] # selecting only factor variables
-if (ncol(donnesFAC) != 0) {
-	message('\n\nCategory frequencies for the factor variables:\n')
-	print(apply((donnesFAC), 2, table))
+# descriptives
+if (verbose) {
+	# descriptives for numeric variables
+	donnesNUM <- donnes[sapply(donnesRED,is.numeric)] # selecting only numeric variables
+	if (ncol(donnesNUM) != 0) {
+		minmax <- t(apply(donnesNUM, 2, range))
+		descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), Min=minmax[,1], Max=minmax[,2]) 
+		message('\n\nDescriptive statistics for the numeric variables:\n')
+		print(round(descs,2), print.gap=4)
+	}
+	
+	# frequencies for factors
+	donnesFAC <- donnes[sapply(donnesRED,is.factor)] # selecting only factor variables
+	if (ncol(donnesFAC) != 0) {
+		message('\n\nCategory frequencies for the factor variables:\n')
+		print(apply((donnesFAC), 2, table))
+	}
+	rm(donnesRED, donnesNUM, donnesFAC)
 }
-
-rm(donnesRED, donnesNUM, donnesFAC)
 
 
 
@@ -772,9 +782,9 @@ if (MOD_type == 'factor') {
 				IVsd <- sapply(dontemp[IV], sd, na.rm = TRUE)
 				IV_min <- c(IV_min, (IVmn - IVsd))
 				IV_max <- c(IV_max, (IVmn + IVsd))
-			} else if (length(IV_range) > 1) {	
-				IV_min <- c(IV_min, IV_range[1])
-				IV_max <- c(IV_max, IV_range[2])
+			} else if (IV_range == 'numeric') {	
+				IV_min <- c(IV_min, IV_range_user[1])
+				IV_max <- c(IV_max, IV_range_user[2])
 			}			
 		}		
 	}
@@ -801,7 +811,7 @@ if (MOD_type == 'numeric') {
 	if (IV_type == 'numeric') {
 	
 		plotdon <- rep(-9999,2)
-		if (is.null(IV_range) | IV_range == 'tumble') { # | 
+		if (IV_range == 'tumble') { # | 
 			# Bodner 2016 p 598 tumble graph method for IV ranges
 			# Use Equation 3 to predict the conditional mean values of the target predictor 
 			# X for each of the moderator variable values chosen in Step 1. The square root 
@@ -833,9 +843,9 @@ if (MOD_type == 'numeric') {
 			IVsd <- sapply(donnes[IV], sd, na.rm = TRUE)
 			IV_min <- IVmn - IVsd
 			IV_max <- IVmn + IVsd
-		} else if (length(IV_range) > 1) {	
-			IV_min <- IV_range[1]
-			IV_max <- IV_range[2]
+		} else if (IV_range == 'numeric') {	
+			IV_min <- IV_range_user[1]
+			IV_max <- IV_range_user[2]
 		}
 		
 		if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), modvals)
@@ -875,9 +885,11 @@ if (MOD_type == 'factor') {
 }
 
 
-# get the range for the x and y axis 
+# set the range for the x and y axis 
 xrange <- range(plotdon[IV]) 
-yrange <- range(plotdon[DV]) 
+
+yrange <- range(plotdon[DV])
+if (!is.null(DV_range))  yrange <- DV_range 
 
 
 # set up the plot 
@@ -888,6 +900,8 @@ if (is.null(Yaxis_label))   Yaxis_label <- DV
 
 if (is.null(PLOT_title))    PLOT_title <- 'Interaction Plot'
 			     
+if (is.null(LEGEND_label))  LEGEND_label <- MOD
+
 			     
 plot(xrange, yrange, type="n", xlab=Xaxis_label, ylab=Yaxis_label, cex.lab=1.3, main=PLOT_title ) 
 
@@ -897,7 +911,7 @@ for (i in 1:length(modvals)) {
 }
 
 if (MOD_type == 'numeric') {legvalues <- round(modvals,2)} else {legvalues <- modvals}
-legend("topleft", legend=legvalues, title=MOD, col=1:length(modvals), 
+legend("topleft", legend=legvalues, title=LEGEND_label, col=1:length(modvals), 
        bty="n", lty=1, lwd=2) # ,inset = c(.60,.03)
 
 
@@ -937,8 +951,7 @@ if (PLOT_type == 'regions') {
 
 
 
-# plots of residuals
-if (verbose) {
+if (is.null(PLOT_type) | PLOT_type == 'residuals') {
 	
 	oldpar <- par(no.readonly = TRUE)
 	on.exit(par(oldpar))
