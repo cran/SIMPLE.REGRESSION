@@ -45,6 +45,19 @@ if (!is.null(IV) & !is.null(MOD)) {
 	formMAIN <- as.formula(paste(DV, paste(c(IV,MOD,COVARS), collapse=" + "), sep=" ~ "))
 } else { modreg <- FALSE }
 
+
+
+if (is.null(forced) & is.null(hierarchical) & (is.null(IV) | is.null(MOD)) ) {
+	message('\n\nThe data for the analyses were not properly specified. Expect errors.\n')
+	message('\nThe forced & hierarchical arguments were NULL (i.e, not provided), and.\n')
+	message('\nat least one of the IV or MOD arguments were NULL.\n')
+	message('\nThere is no way of determining what analyses should be conducted.\n')
+}
+
+
+if (NAflag) cat('\n\nCases with missing values were found and removed from the data matrix.\n\n')
+
+
 # IV_type
 if (modreg) {
 	if (IV_type == 'numeric' & is.numeric(donnes[,IV])) IV_type <- 'numeric'
@@ -74,9 +87,6 @@ if (modreg) {
 	IV_type <- 'factor'
 	}
 }
-
-
-if (NAflag) cat('\n\nCases with missing values were found and removed from the data matrix.\n\n')
 
 
 # centering, if requested (only for modreg)

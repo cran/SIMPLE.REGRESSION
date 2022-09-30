@@ -11,4 +11,4 @@ importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova,
 importFrom("graphics", lines, par, points, layout, layout.show,
            abline, legend, rect, hist)
 
-importFrom("utils", head)
+importFrom("utils", head, packageDescription)
