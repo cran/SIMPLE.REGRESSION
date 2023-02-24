@@ -29,5 +29,5 @@
 }
 \author{Brian P. O'Connor }
 \examples{
-PARTIAL_COEFS(cormat = cor(data_Green_Salkind_2008))
+PARTIAL_COEFS(cormat = cor(data_Green_Salkind_2014))
 }

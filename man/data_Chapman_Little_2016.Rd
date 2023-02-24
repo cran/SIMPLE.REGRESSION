@@ -16,12 +16,14 @@ justifications for giving or withholding aid to disaster victims.
 \examples{
 head(data_Chapman_Little_2016)
 
-\donttest{
+\donttest{ 
+# the data used by Hayes (2018, Introduction to Mediation, Moderation, and 
+# Conditional Process Analysis: A Regression-Based Approach), replicating p. 239
 SIMPLE.REGRESSION(data=data_Chapman_Little_2016, DV='justify',
        IV='frame', IV_type = 'numeric', IV_range='tumble',
        MOD='skeptic', MOD_type = 'numeric', MOD_levels='AikenWest', MOD_range=NULL,
        quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
-       CENTER = TRUE, COVARS=NULL,
+       CENTER = FALSE, COVARS=NULL,
        PLOT_type = 'regions', PLOT_title=NULL, 
        Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
        JN_type = 'Huitema', verbose=TRUE ) 

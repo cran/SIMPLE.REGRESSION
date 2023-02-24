@@ -172,14 +172,15 @@
 \author{Brian P. O'Connor}
 \examples{
 # forced (simultaneous) entry
-head(data_Green_Salkind_2008)
-SIMPLE.REGRESSION(data=data_Green_Salkind_2008, DV='injury', 
+head(data_Green_Salkind_2014)
+SIMPLE.REGRESSION(data=data_Green_Salkind_2014, DV='injury', 
                   forced = c('quads','gluts','abdoms','arms','grip'))
 
 \donttest{	
 # hierarchical entry
-SIMPLE.REGRESSION(data=data_Green_Salkind_2008, DV='injury', 
-                  hierarchical = list( step1=c('quads','gluts','abdoms'), step2=c('arms','grip')) )
+SIMPLE.REGRESSION(data=data_Green_Salkind_2014, DV='injury', 
+                  hierarchical = list( step1=c('quads','gluts','abdoms'), 
+                                       step2=c('arms','grip')) )
 		
 
 # moderated regression	-- with IV_range = 'AikenWest'

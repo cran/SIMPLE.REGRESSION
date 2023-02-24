@@ -18,10 +18,9 @@ head(data_Cohen_Aiken_West_2003_7)
 
 \donttest{
 # replicates p 276 of Chapter 7 of Cohen, Cohen, West, & Aiken (2003)
-
 SIMPLE.REGRESSION(data=data_Cohen_Aiken_West_2003_7, DV='yendu',
                   IV='xage', IV_type = 'numeric', IV_range='tumble',
-                  MOD='zexer', MOD_type = 'numeric', MOD_levels='quantiles', 
+                  MOD='zexer', MOD_type = 'numeric', MOD_levels='AikenWest', 
                   MOD_range=NULL,
                   quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                   CENTER = TRUE, COVARS=NULL, 

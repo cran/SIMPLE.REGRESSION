@@ -1,4 +1,6 @@
 
+
+
       
 SIMPLE.REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                         IV=NULL, IV_type = 'numeric', IV_range='tumble',
@@ -56,6 +58,15 @@ if (is.null(forced) & is.null(hierarchical) & (is.null(IV) | is.null(MOD)) ) {
 
 
 if (NAflag) cat('\n\nCases with missing values were found and removed from the data matrix.\n\n')
+
+
+if (length(MOD_levels) > 1) {
+	
+	mod_values <- MOD_levels
+	
+	MOD_levels <- 'user'
+}
+
 
 
 # IV_type
@@ -147,7 +158,7 @@ if (!is.null(forced) | modreg)  {
 	
 	mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
 		
-	modeldata$fitted.values <- modelMAIN$fitted.values
+	modeldata$predicted <- modelMAIN$fitted.values
 			
 	# casewise diagnostics
 	modeldata$residuals <- resid(modelMAIN)
@@ -256,7 +267,7 @@ if (!is.null(hierarchical)) {
 
 		mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
 
-		modeldata$fitted.values <- modelMAIN$fitted.values
+		modeldata$predicted <- modelMAIN$fitted.values
 							
 		# casewise diagnostics
 		modeldata$residuals <- resid(modelMAIN)
@@ -343,7 +354,7 @@ noms <- colnames(modeldata)
 
 # names of the regression diagnostic variables -- for exclusion from MODnew
 nomsdiags <- c("standardized.residuals", "studentized.residuals", "cooks.distance",        
-    "dfbeta", "dffit", "leverage", "covariance.ratios", "fitted.values", "residuals")
+    "dfbeta", "dffit", "leverage", "covariance.ratios", "predicted", "residuals")
 
 MODnew <- setdiff(noms,c(DV,IV,COVARS, nomsdiags))
 
@@ -373,7 +384,7 @@ fsquaredXN <- (RsqXN - RsqMAIN) / (1 - RsqXN)
 
 xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(IV,MODnew,PROD,COVARS)]), modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
 
-modeldata$fitted.values <- modelXN$fitted.values
+modeldata$predicted <- modelXN$fitted.values
 	
 
 # casewise diagnostics
@@ -391,11 +402,11 @@ if (verbose) {
 
 	message('\n\n\nModerated regression:')
 	
-	if (MOD_type == 'numeric') {
-		message('\nThe specification for MOD_levels is: ', MOD_levels, '\n')
-		if (MOD_levels == 'quantiles') 
+	if (MOD_type == 'numeric' & MOD_levels == 'user')
+		message('\nThe specification for MOD_levels is: ', paste(mod_values, collapse=', '), '\n')
+
+	if (MOD_levels == 'quantiles') 
 			message('The moderator quantiles that will be used: ', paste(quantiles_MOD, collapse=', ') )
-	}
 	
 	message('\n\nmultiple R = ', round(sqrt(RsqXN),3), 
 	        '   multiple R-squared = ', round(RsqXN,3),
@@ -426,20 +437,32 @@ if (verbose) {
 	
 # the values/levels of MOD, if it is continuous
 if (MOD_type != 'factor') {  
-	if (MOD_levels=='quantiles')  modvals <- quantile(donnes[,MOD], probs=quantiles_MOD)
+	
+	if (MOD_levels=='quantiles')  mod_values <- quantile(donnes[,MOD], probs=quantiles_MOD)
+	
 	if (MOD_levels=='AikenWest') {
 		MODmn <- sapply(donnes[MOD], mean, na.rm = TRUE)
 		MODsd <- sapply(donnes[MOD], sd, na.rm = TRUE)
 		MODlo <- MODmn - MODsd
 		MODhi <- MODmn + MODsd
-		modvals <- c(MODlo, MODmn, MODhi)
+		mod_values <- c(MODlo, MODmn, MODhi)
 	}	
-	if (length(MOD_levels) > 1) modvals <- MOD_levels			
-	modvals <- round(modvals,2)
+	
+	# if (length(MOD_levels) > 1) mod_values <- MOD_levels
+	
+	# mod_values <- round(mod_values,3)
+
+	# make sure there are no duplicates, due to rounding, in mod_values
+	for (lupe in 1:10) {
+		if (!any(duplicated(round(mod_values,lupe)))) { 
+			mod_values <- round(mod_values,lupe)
+			break
+		}
+	}
 }
 
 # the values/levels of MOD, if it is categorical
-if (MOD_type == 'factor')  modvals <- levels(donnes[,MOD])
+if (MOD_type == 'factor')  mod_values <- levels(donnes[,MOD])
 
 
 
@@ -450,9 +473,9 @@ if (MOD_type == 'factor')  modvals <- levels(donnes[,MOD])
 coefs <- modelXN$coefficients
 Sb <- vcov(modelXN)[2:length(coefs),2:length(coefs)]
 if (MOD_type != 'factor') {
-	slopes   <- coefs[IV] + coefs[PROD] * modvals
-	intercepts  <- coefs[MOD] * modvals + coefs['(Intercept)']
-	SEslopes <- sqrt( Sb[IV,IV] + 2*modvals*Sb[IV,PROD] +  modvals**2 * Sb[PROD,PROD])
+	slopes   <- coefs[IV] + coefs[PROD] * mod_values
+	intercepts  <- coefs[MOD] * mod_values + coefs['(Intercept)']
+	SEslopes <- sqrt( Sb[IV,IV] + 2*mod_values*Sb[IV,PROD] +  mod_values**2 * Sb[PROD,PROD])
 } else { 
 	slopes   <- c(coefs[IV], (coefs[IV] + coefs[PROD]))
 	intercepts  <- c(coefs[1],  (coefs[1]  + coefs[MODnew]))
@@ -472,11 +495,11 @@ me <- tabledT * SEslopes
 confidLo <- slopes - me
 confidHi <- slopes + me
 
-# simslop <- data.frame(MODlevel=modvals, Intercept=intercepts, Slope=slopes, SEslopes=SEslopes, 
+# simslop <- data.frame(MODlevel=mod_values, Intercept=intercepts, Slope=slopes, SEslopes=SEslopes, 
                       # t=tslopes, p=pslopes, Slope_CI_lo=confidLo, Slope_CI_hi=confidHi)
 simslop <- data.frame(Intercept=intercepts, b=slopes, SE_b=SEslopes, 
                       t=tslopes, p=pslopes, b_CI_lo=confidLo, b_CI_hi=confidHi)
-rownames(simslop) <- modvals
+rownames(simslop) <- mod_values
 
 if (verbose) {
 	message('\n\nSimple slopes for the levels of the moderator:\n')
@@ -499,7 +522,7 @@ if (MOD_type == 'factor') {
 	confidHi <- zslopes + me
 	simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
 	                       beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=grp_correls)
-	rownames(simslopZ) <- modvals
+	rownames(simslopZ) <- mod_values
 } else {
 	zslopes <- slopes   * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )
 	zSE     <- SEslopes * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )	
@@ -511,7 +534,7 @@ if (MOD_type == 'factor') {
 	reffsize <- sqrt( tslopes**2 / (tslopes**2 + dfs) )  # EffectSizeConversion.pdf	
 	simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
 	                       beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=reffsize)
-	rownames(simslopZ) <- modvals
+	rownames(simslopZ) <- mod_values
 }
 
 if (verbose) {
@@ -566,44 +589,52 @@ if (MOD_type == 'numeric') {
 	b <- 2 * (tcrit^2 * S[IV,PROD] - B[IV]*B[PROD])
 	c <- tcrit^2 * S[IV,IV] - B[IV]^2
 
-	JNa <- (-b - sqrt(b^2-4*a*c)) / (2*a)
-	JNb <- (-b + sqrt(b^2-4*a*c)) / (2*a)
 
-	ros <- sort(c(JNa,JNb))
-	
-	# adding the ros values to MODvalues, but only if they are within the MOD min/max range
-	MODvalues <- sort(c(MODvalues, ros[ros >= MOD_min & ros <= MOD_max ])	)
-	
-	# data for plot
-	SimpleSlope <- B[IV]+(B[PROD]*MODvalues)
-	StdError <- sqrt((S[IV,IV])+(MODvalues^2*S[PROD,PROD])+(2*MODvalues*S[IV,PROD]) )   
-	CI.L <- SimpleSlope - tcrit*StdError  
-	CI.U <- SimpleSlope + tcrit*StdError  
-	JN.data <- data.frame(SimpleSlope, CI.L, CI.U, MODvalues, StdError)
+	# when JN values can be computed
+	if (b^2-4*a*c >= 0) {
+		JNa <- (-b - sqrt(b^2-4*a*c)) / (2*a)
+		JNb <- (-b + sqrt(b^2-4*a*c)) / (2*a)
+		ros <- sort(c(JNa,JNb))
 
-	if (verbose) {
-	
-		message('\n\nJohnson-Neyman regions of significance interval:')  
-		message('\n   The slopes for ',IV,' predicting ',DV,' are significant when ',MOD)
-		message('\n','   values are outside of (lower and higher than) this range: ',round(ros[1],2),' to ',round(ros[2],2))
+		# adding the ros values to MODvalues, but only if they are within the MOD min/max range
+		MODvalues <- sort(c(MODvalues, ros[ros >= MOD_min & ros <= MOD_max ])	)
 		
-		# slope & CI values at the ros points
-		if (ros[1] >= MOD_min) {
-			rownum <- which(JN.data$MODvalues == ros[1]) # the row with the low ros MOD value info
-			message('\n   When ',MOD,' is ',round(ros[1],2),
-			        ':   slope = ',round(JN.data$SimpleSlope[rownum],2),
-			        '  CI_lb = ',round(JN.data$CI.L[rownum],2),'  CI_ub = ',round(JN.data$CI.U[rownum],2),
-			        '  SE = ',round(JN.data$StdError[rownum],2))
+		# data for plot
+		SimpleSlope <- B[IV]+(B[PROD]*MODvalues)
+		StdError <- sqrt((S[IV,IV])+(MODvalues^2*S[PROD,PROD])+(2*MODvalues*S[IV,PROD]) )   
+		CI.L <- SimpleSlope - tcrit*StdError  
+		CI.U <- SimpleSlope + tcrit*StdError  
+		JN.data <- data.frame(SimpleSlope, CI.L, CI.U, MODvalues, StdError)
+	
+		if (verbose) {
+		
+			message('\n\nJohnson-Neyman regions of significance interval:')  
+			message('\n   The slopes for ',IV,' predicting ',DV,' are significant when ',MOD)
+			message('\n','   values are outside of (lower and higher than) this range: ',round(ros[1],2),' to ',round(ros[2],2))
+			
+			# slope & CI values at the ros points
+			if (ros[1] >= MOD_min) {
+				rownum <- which(JN.data$MODvalues == ros[1]) # the row with the low ros MOD value info
+				message('\n   When ',MOD,' is ',round(ros[1],2),
+				        ':   slope = ',round(JN.data$SimpleSlope[rownum],2),
+				        '  CI_lb = ',round(JN.data$CI.L[rownum],2),'  CI_ub = ',round(JN.data$CI.U[rownum],2),
+				        '  SE = ',round(JN.data$StdError[rownum],2))
+			}
+			if (ros[2] <= MOD_max) {
+				rownum <- which(JN.data$MODvalues == ros[2]) # the row with the high ros MOD value info
+				message('\n   When ',MOD,' is ',round(ros[2],2),
+				        ':    slope = ',round(JN.data$SimpleSlope[rownum],2),
+				        '    CI_lb = ',round(JN.data$CI.L[rownum],2),'   CI_ub = ',round(JN.data$CI.U[rownum],2),
+				        '    SE = ',round(JN.data$StdError[rownum],2))
+			}
+			message('\n   The ',IV,' values range from ',round(IV_min_JN,2),' to ',round(IV_max_JN,2), '\n\n')
 		}
-		if (ros[2] <= MOD_max) {
-			rownum <- which(JN.data$MODvalues == ros[2]) # the row with the high ros MOD value info
-			message('\n   When ',MOD,' is ',round(ros[2],2),
-			        ':    slope = ',round(JN.data$SimpleSlope[rownum],2),
-			        '    CI_lb = ',round(JN.data$CI.L[rownum],2),'   CI_ub = ',round(JN.data$CI.U[rownum],2),
-			        '    SE = ',round(JN.data$StdError[rownum],2))
-		}
-		message('\n   The ',IV,' values range from ',round(IV_min_JN,2),' to ',round(IV_max_JN,2), '\n\n')
-	}
+	}	
+	
+	if (b^2-4*a*c < 0) {
+		message('\n\nJohnson-Neyman regions of significance cannot be computed because the')  
+		message('procedure would involve finding the square root of a negative number.\n')
+	}		
 }
 
 
@@ -778,7 +809,7 @@ if (MOD_type == 'factor') {
 		IV_min <- IV_max <- NULL
 		for (lupeD in 1:Ngroups) {
 
-			dontemp <- subset(donnes, modvals==levels(donnes[,MOD])[lupeD], select=IV)
+			dontemp <- subset(donnes, mod_values==levels(donnes[,MOD])[lupeD], select=IV)
 		
 			if (IV_range == 'quantiles' | IV_range == 'tumble') {   # using the 10th & 90th
 				IVquants <- quantile(dontemp, na.rm=T, probs=quantiles_IV)	
@@ -833,12 +864,12 @@ if (MOD_type == 'numeric') {
 			eq3 <- lm(formB, donnes)
 			sumtab <- summary(eq3)
 			sqrmsr <- sumtab$sigma	
-			for (lupe in 1:length(modvals)) {
-				predval <- sumtab$coeff[1,1] + sumtab$coeff[2,1] * modvals[lupe]
+			for (lupe in 1:length(mod_values)) {
+				predval <- sumtab$coeff[1,1] + sumtab$coeff[2,1] * mod_values[lupe]
 				IV_min <- predval - sqrmsr
-				plotdon <- rbind( plotdon, c(IV_min, modvals[lupe]))
+				plotdon <- rbind( plotdon, c(IV_min, mod_values[lupe]))
 				IV_max <- predval + sqrmsr
-				plotdon <- rbind( plotdon, c(IV_max, modvals[lupe]))		
+				plotdon <- rbind( plotdon, c(IV_max, mod_values[lupe]))		
 			}
 			plotdon <- plotdon[-1,]		
 		} else if (IV_range == 'quantiles') { # using the 10th & 90th
@@ -858,10 +889,9 @@ if (MOD_type == 'numeric') {
 			IV_max <- IV_range_user[2]
 		}
 		
-		if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), modvals)
-	
-		colnames(plotdon)[1] <- IV
-		colnames(plotdon)[2] <- MODnew
+		if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), mod_values)
+
+		colnames(plotdon) <- c(IV, MODnew)
 	}
 }
 
@@ -873,7 +903,7 @@ if (!is.null(COVARS)) {
 
 	COVARSmn <- matrix(sapply(donnes[COVARS], mean, na.rm = TRUE), nrow=1)
 
-	COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=6, ncol=4, byrow=TRUE)
+	COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=nrow(plotdon), ncol=4, byrow=TRUE)
 	plotdon <- cbind(plotdon, COVARSmn)
 	colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
 
@@ -891,7 +921,7 @@ colnames(plotdon)[colnames(plotdon) == 'predDV'] <- DV
 
 if (MOD_type == 'factor') { 
 	plotdon <- plotdon[,c(IV,DV)]
-	plotdon[,MOD] <- rep(modvals,2) 
+	plotdon[,MOD] <- rep(mod_values,2) 
 }
 
 
@@ -915,13 +945,13 @@ if (is.null(LEGEND_label))  LEGEND_label <- MOD
 			     
 plot(xrange, yrange, type="n", xlab=Xaxis_label, ylab=Yaxis_label, cex.lab=1.3, main=PLOT_title ) 
 
-for (i in 1:length(modvals)) {
-	dum <- subset(plotdon, plotdon[,MOD]==modvals[i], select = c(IV,DV))
+for (i in 1:length(mod_values)) {
+	dum <- subset(plotdon, plotdon[,MOD]==mod_values[i], select = c(IV,DV))
 	lines(dum, type="b", lwd=1.5, lty=1, col=i, pch=19); #points(dum)
 }
 
-if (MOD_type == 'numeric') {legvalues <- round(modvals,2)} else {legvalues <- modvals}
-legend("topleft", legend=legvalues, title=LEGEND_label, col=1:length(modvals), 
+if (MOD_type == 'numeric') {legvalues <- round(mod_values,2)} else {legvalues <- mod_values}
+legend("topleft", legend=legvalues, title=LEGEND_label, col=1:length(mod_values), 
        bty="n", lty=1, lwd=2) # ,inset = c(.60,.03)
 
 
@@ -969,22 +999,22 @@ if (is.null(PLOT_type) | PLOT_type == 'residuals') {
 	par(mfrow=c(2,2), pty="m", mar=c(3,2,3,2) + 2.6)
 	
 	# plot of standardized residuals vs fitted (predicted) values
-	plot(modeldata$fitted.values, modeldata$standardized.residuals,  
+	plot(modeldata$predicted, modeldata$standardized.residuals,  
 		xlab='Predicted (Fitted) Values', ylab='Standardized Residuals',
 		main='Standardized Residuals')  #  vs Predicted Values
 	abline(0, 0)
-	lowessFit <- lowess(x=modeldata$fitted.values, y = modeldata$standardized.residuals, 
-	                    f = 2/3, iter = 3, delta = 0.01 * diff(range(modeldata$fitted.values)))
+	lowessFit <- lowess(x=modeldata$predicted, y = modeldata$standardized.residuals, 
+	                    f = 2/3, iter = 3, delta = 0.01 * diff(range(modeldata$predicted)))
 	lines(lowessFit,col='red')
 	
 		
 	# plot of studentized residuals vs fitted (predicted) values
-	plot(modeldata$fitted.values, modeldata$studentized.residuals,  
+	plot(modeldata$predicted, modeldata$studentized.residuals,  
 		xlab='Predicted (Fitted) Values', ylab='Studentized Residuals',
 		main='Studentized Residuals')  #  vs Predicted Values
 	abline(0, 0)
-	lowessFit <- lowess(x=modeldata$fitted.values, y = modeldata$studentized.residuals, 
-	                    f = 2/3, iter = 3, delta = 0.01 * diff(range(modeldata$fitted.values)))
+	lowessFit <- lowess(x=modeldata$predicted, y = modeldata$studentized.residuals, 
+	                    f = 2/3, iter = 3, delta = 0.01 * diff(range(modeldata$predicted)))
 	lines(lowessFit,col='red')
 	
 	

@@ -16,6 +16,7 @@ Pedhazur, E. J. (1997). \emph{Multiple regression in behavioral research: Explan
 head(data_Pedhazur_1997)
 
 \donttest{
+# replicating results on p. 594 for the Johnson-Neyman technique for a categorical moderator	
 SIMPLE.REGRESSION(data=data_Pedhazur_1997, DV='Y', 
                   IV='X', IV_type = 'numeric', IV_range='tumble',
                   MOD='Directive', MOD_type = 'factor', MOD_levels='quantiles', 
