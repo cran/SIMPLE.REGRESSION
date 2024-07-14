@@ -9,23 +9,25 @@
 \arguments{
   \item{cormat}{
   \code{}A correlation matrix. The DV (the dependent or outcome variable) must be in 
-  the first row/column of cormat.}
+  the first row/column of cormat.
+  \cr Example: cormat = correls}
   	    
   \item{modelRsq}{
-  \code{}optional. The model Rsquared, which makes the computations slightly faster
-  when it is available.}
+  \code{}(optional) The model Rsquared, which makes the computations slightly faster
+  when it is available.
+    \cr Example: modelRsq = .22}
   	      	                     
   \item{verbose}{
   \code{}Should detailed results be displayed in console? \cr The options are: TRUE (default) or FALSE.}
 }
-\value{An object of class "data.frame" containing with the standardized regression coefficients (betas), 
+\value{A data.frame containing the standardized regression coefficients (betas), 
 	the Pearson correlations, the partial correlations, and the semi-partial correlations for each
 	variable with the DV.
 }
 \references{
        {Cohen, J., Cohen, P., West, S. G., & Aiken, L. S. (2003). \emph{Applied 
 	    multiple regression/correlation analysis for the behavioral sciences} (3rd ed.). 
-	    Lawrence Erlbaum Associates Publishers.}
+	    Lawrence Erlbaum Associates.}
 }
 \author{Brian P. O'Connor }
 \examples{

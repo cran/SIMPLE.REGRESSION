@@ -6,25 +6,20 @@
 	dichotomous moderator from Pedhazur (1997, p. 588). 
 }
 \usage{data(data_Pedhazur_1997)}
-
 \source{
 Pedhazur, E. J. (1997). \emph{Multiple regression in behavioral research: Explanation 
    and prediction.} (3rd ed.). Fort Worth, Texas: Wadsworth Thomson Learning.
 }
-
 \examples{
 head(data_Pedhazur_1997)
-
 \donttest{
 # replicating results on p. 594 for the Johnson-Neyman technique for a categorical moderator	
-SIMPLE.REGRESSION(data=data_Pedhazur_1997, DV='Y', 
-                  IV='X', IV_type = 'numeric', IV_range='tumble',
-                  MOD='Directive', MOD_type = 'factor', MOD_levels='quantiles', 
-                  MOD_range=NULL,
-                  quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
-                  CENTER = FALSE, COVARS=NULL, 
-                  PLOT_type = 'interaction', PLOT_title=NULL, 
-                  Xaxis_label=NULL, Yaxis_label=NULL, LEGEND_label=NULL,
-                  JN_type = 'Pedhazur', verbose=TRUE ) 
+MODERATED_REGRESSION(data=data_Pedhazur_1997, DV='Y', 
+                     IV='X', IV_range='tumble',
+                     MOD='Directive', MOD_type = 'factor', MOD_levels='quantiles', 
+                     quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
+                     center = FALSE, 
+                     plot_type = 'interaction', 
+                     JN_type = 'Pedhazur') 
 }
 }
