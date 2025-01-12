@@ -4,6 +4,9 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                       ref_category = NULL,
                       family = 'binomial',
                       plot_type = 'residuals',
+                      CI_level = 95,
+                      MCMC = FALSE,
+                      Nsamples = 4000,
                       verbose=TRUE ) {
   
   "<-<-" <- NULL   # need this or else get "no visible global function definition for '<-<-' " on R CMD check
@@ -247,7 +250,41 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       modelMAINsum$coefs <- round_boc(modelMAINsum$coefs, round_non_p = 3, round_p = 6) 
       print(round_boc(modelMAINsum$coefs,3), print.gap=4)
     }
-    
+
+    if (MCMC) {
+      
+      if (family == 'quasibinomial') {
+        message("\n\nFamily = 'quasibinomial' analyses are currently not possible for")
+        message("the MCMC analyses. family = 'binomial' will therefore be used instead.\n")
+      }
+        
+      # rstanarm: All outcome values must be 0 or 1 for Bernoulli models
+      
+      # is.numeric(donnesH[DV])
+      # is.factor(donnesH[DV])
+      # is.character(donnesH[DV])
+      
+      # data_Kremelburg_2011$OCCTRAIN <- as.numeric(data_Kremelburg_2011$OCCTRAIN)
+      
+      MCMC_mod <- stan_glm(formMAIN, data = donnesH, family = "binomial", 
+                           refresh = 0, algorithm="sampling", iter = Nsamples)
+      
+      # MCMC_mod_sum <- summary(MCMC_mod, digits=3, probs=c(.025, .975))
+
+      MCMC_mod_coefs <- cbind(coef(MCMC_mod), posterior_interval(MCMC_mod, prob= CI_level * .01))
+      
+      MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
+      
+      colnames(MCMC_mod_coefs) <- c('B','B_ci_lb','B_ci_ub','OR','OR_ci_lb','OR_ci_ub')
+      
+      # prior_summary(MCMC_mod)
+
+      if (verbose) {
+        message('\n\nCoefficients from Bayesian MCMC analyses:\n')
+        print(round_boc(MCMC_mod_coefs,3), print.gap=4)
+      }
+    }
+        
     # likelihood ratio tests
     if (length(preds) > 1) {
       LR_tests <- c()
@@ -323,7 +360,6 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   
   output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum,
                  modeldata=modeldata, coefs = modelMAINsum$coefs,
-                 cormat = modelMAINsum$correlation,
                  collin_diags = collin_diags, family=family)
   
   

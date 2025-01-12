@@ -10,6 +10,9 @@
                     ref_category = NULL,
                     family = 'binomial',
                     plot_type = 'residuals',
+                    CI_level = 95,
+                    MCMC = FALSE,
+                    Nsamples = 4000,
                     verbose = TRUE)
 }\arguments{
   \item{data}{
@@ -50,6 +53,16 @@
   }
   Example: plot_type = 'diagnostics'}
 
+ \item{CI_level}{
+  \code{}(optional) The confidence interval for the output, in whole numbers.
+  The default is 95.}
+
+ \item{MCMC}{
+  \code{}(logical) Should Bayesian MCMC analyses be conducted? The default is FALSE.}
+
+ \item{Nsamples}{
+  \code{}(optional) The number of samples for MCMC analyses. The default is 10000.}
+
   \item{verbose}{
   \code{}(optional) Should detailed results be displayed in console? \cr The options are: 
   TRUE (default) or FALSE. If TRUE, plots of residuals are also produced.}
@@ -62,11 +75,16 @@
 	Predicted values for this model, for selected levels of the predictor variables,
 	can be produced and plotted using the PLOT_MODEL funtion in this package.
 
+	The Bayesian MCMC analyses can be time-consuming for larger datasets. The MCMC 
+	analyses are conducted using functions, and their default settings, from the 
+	rstanarm package (Goodrich, Gabry, Ali, & Brilleman, 2024). 
+	The MCMC results can be verified using the model checking functions in the
+	rstanarm package (e.g., Muth, Oravecz, & Gabry, 201).
+
   Good sources for interpreting logistic regression residuals and diagnostics plots:
 	\itemize{
   \item{\href{https://rpubs.com/benhorvath/glm_diagnostics}{rpubs.com/benhorvath}}
   \item{\href{https://library.virginia.edu/data/articles/understanding-deviance-residuals}{library.virginia.edu}}
-  \item{\href{https://online.stat.psu.edu/stat462/node/207/}{online.stat.psu.edu}}
   }
 }
 \value{An object of class "LOGISTIC_REGRESSION". The object is a list containing the
@@ -76,18 +94,24 @@
 \item{modeldata}{All of the predictor and outcome raw data that were used in the model,
 	along with regression diagnostic statistics for each case.}
 \item{collin_diags}{Collinearity diagnostic coefficients for models without interaction terms.}
-\item{cormat}{The correlation matrix for the model coefficients.}
 }
 \references{
        {Dunn, P. K., & Smyth, G. K. (2018). \emph{Generalized linear models 
        with examples in R.} Springer.}
 \cr\cr {Field, A., Miles, J., & Field, Z. (2012). 
        	\emph{Discovering statistics using R.} Los Angeles, CA: Sage.}
+\cr\cr {Goodrich, B., Gabry, J., Ali, I., & Brilleman, S. (2024). \emph{rstanarm:  
+        Bayesian applied regression modeling via Stan.} R package version 2.32.1, 
+        https://mc-stan.org/rstanarm/.}
 \cr\cr {Hair, J. F., Black, W. C., Babin, B. J., & Anderson, R. E. (2014). 
         \emph{Multivariate data analysis,} (8th ed.).
 	      Lawrence Erlbaum Associates.}
 \cr\cr {Hosmer, D. W., Lemeshow, S., & Sturdivant, R. X. (2013) 
         \emph{Applied logistic regression.} (3rd ed.). John Wiley & Sons.}
+\cr\cr {Muth, C., Oravecz, Z., & Gabry, J. (2018). User-friendly Bayesian regression 
+        modeling: A tutorial with rstanarm and shinystan. \emph{The Quantitative Methods 
+        for Psychology, 14(2),} 99119. 
+        \cr https://doi.org/10.20982/tqmp.14.2.p099}
 \cr\cr {Orme, J. G., & Combs-Orme, T. (2009). \emph{Multiple regression with discrete 
         dependent variables.} Oxford University Press.}
 \cr\cr {Pituch, K. A., & Stevens, J. P. (2016). 

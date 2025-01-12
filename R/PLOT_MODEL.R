@@ -1,11 +1,10 @@
 
 
-
 PLOT_MODEL <- function(model, 
                        IV_focal_1, IV_focal_1_values=NULL, 
                        IV_focal_2=NULL, IV_focal_2_values=NULL, 
                        IVs_nonfocal_values = NULL,
-                       bootstrap=FALSE, N_sims=1000, CI_level=95, 
+                       bootstrap=FALSE, N_sims=100, CI_level=95, 
                        xlim=NULL, xlab=NULL,
                        ylim=NULL, ylab=NULL,
                        title = NULL,
@@ -17,31 +16,39 @@ PLOT_MODEL <- function(model,
   if (inherits(model,"LOGISTIC_REGRESSION"))       model_type = 'LOGISTIC'
   if (inherits(model,"COUNT_REGRESSION"))          model_type = 'COUNT'
   
+  if (any(grepl( 'pscl::zeroinfl',  model$modelMAIN$call, fixed = TRUE)))  model_type = 'ZINFL'
+  
   # if (any(class(model$modelMAIN) == 'lm'))                          model_type = 'OLS'
   # if (any(grepl( 'binomial', model$modelMAIN$call, fixed = TRUE)))  model_type = 'logistic'
   # if (any(grepl( 'poisson',  model$modelMAIN$call, fixed = TRUE)))  model_type = 'poisson'
-
   
-    
   if (inherits(model,"MODERATED_REGRESSION"))   names(model)[5] <- 'modelMAIN'
   
   
+  # yhatR$se.fit is not available for 'zinfl_poisson' & 'zinfl_negbin' models 
+  # so can't do regular CIs, must bootstrap
+  bootstrap_flag <- FALSE
+  if (!bootstrap & model_type == 'ZINFL')  bootstrap <- bootstrap_flag <- TRUE
   
   
-  DV <- colnames(model$modeldata)[1]
+  # DV name
+  if (model_type == 'ZINFL') {
+    DV <- names(attr(model$modelMAIN$terms$full, "dataClasses"))[1]
+  } else { DV <- colnames(model$modeldata)[1] }
   
-  IVnames <- attr(model$modelMAIN$terms, "term.labels")
-  
-  
+  # IV names
+  if (model_type == 'ZINFL') {
+    IVnames <- attr(model$modelMAIN$terms$full, "term.labels")
+  } else { IVnames <- attr(model$modelMAIN$terms, "term.labels") }
   
   # remove interaction terms i.e., that contain :
   IVnames <- IVnames[!grepl(':', IVnames)]
-
-  
-  
   
   # are any of the predictors factors?
-  list_xlevels <- model$modelMAIN$xlevels
+  if (model_type == 'ZINFL') { 
+    list_xlevels <- model$modelMAIN$levels
+  } else { list_xlevels <- model$modelMAIN$xlevels }
+  
   
   
   # IV_focal_1_values
@@ -79,6 +86,11 @@ PLOT_MODEL <- function(model,
   
   
   # IV_focal_2_values
+  
+  # notice if IV_focal_2 is not provided but IV_focal_2_values are provided
+  if (is.null(IV_focal_2) & !is.null(IV_focal_2_values)) 
+    message('\nIV_focal_2_values were provided but without specifying the name of IV_focal_2.')
+  
   if (!is.null(IV_focal_2)) {
     
     # test if IV_focal_2 is in the IVnames
@@ -122,7 +134,7 @@ PLOT_MODEL <- function(model,
   
   # remove interaction terms i.e., that contain :
   IVs_nonfocal <- IVs_nonfocal[!grepl(':', IVs_nonfocal)]
-
+  
   IVs_nonfocal_values_list <- c()
   
   # when there are factors, cycle through the IVs_nonfocal, use mean if continuous, use baseline if categorical
@@ -183,18 +195,19 @@ PLOT_MODEL <- function(model,
   head(testdata)
   
   
-  if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
+  # if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
   
   if (is.null(xlab))  xlab <- IV_focal_1
   
   
   if (is.null(ylim)) {
     
-    if (model_type == 'OLS' | model_type == 'MODERATED')  ylim <- c(min(model$modelMAIN$y), max(model$modelMAIN$y))
+    if (model_type == 'OLS' | model_type == 'MODERATED')  
+      ylim <- c(min(testdata$ci_lb), max(testdata$ci_ub))
     
     if (model_type == 'LOGISTIC')  ylim <- c(0,1)
     
-    if (model_type == 'COUNT')   ylim <- c(0, max(model$modelMAIN$y))
+    if (model_type == 'COUNT' | model_type == 'ZINFL')   ylim <- c(0, max(testdata$ci_ub))
   }
   
   if (is.null(ylab)) {
@@ -203,7 +216,7 @@ PLOT_MODEL <- function(model,
     
     if (model_type == 'LOGISTIC')  ylab <- paste("Probability of ", DV)
     
-    if (model_type == 'COUNT')   ylab <- DV
+    if (model_type == 'COUNT' | model_type == 'ZINFL')   ylab <- DV
   }
   
   if (is.null(title)) {
@@ -216,6 +229,8 @@ PLOT_MODEL <- function(model,
   
   # if IV_focal_1 is NOT a factor
   if (!IV_focal_1 %in% names(list_xlevels)) {
+    
+    if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
     
     if (is.null(IV_focal_2)) {
       plot(testdata[,DV_predicted] ~ testdata[,IV_focal_1], type = 'n', 
@@ -284,7 +299,7 @@ PLOT_MODEL <- function(model,
                           ylab = ylab,
                           main = title)
       
-      yyy = seq(ylim[1], ylim[2], by=.2)
+      yyy = seq(ylim[1], ylim[2])  #, by=.2)
       
       axis(side=2, at=yyy, labels=yyy, las=1)
       
@@ -304,7 +319,7 @@ PLOT_MODEL <- function(model,
                           ylab = ylab,
                           main = title)
       
-      yyy = seq(ylim[1], ylim[2], by=.2)
+      yyy = seq(ylim[1], ylim[2])  # , by=.2)
       
       axis(side=2, at=yyy, labels=yyy, las=1)
       
@@ -350,7 +365,13 @@ PLOT_MODEL <- function(model,
     
     message('\nBootstrapped confidence intervals: ', bootstrap)
     
-    if (bootstrap) message('\nThe number of bootstrap simulations: ', N_sims)
+    if (bootstrap) {
+      if (bootstrap_flag) {
+        message('\nConventional CIs cannot be computed for zero-inflated models at this time.')
+        message('Bootrapped CIs were computed instead.\n')
+      }
+      message('\nThe number of bootstrap simulations: ', N_sims)
+    }
     
     message('\nThe top rows of the output data matrix:\n')
     print(head(round_boc(testdata, 3), n=6), print.gap=4)

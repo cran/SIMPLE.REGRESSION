@@ -6,6 +6,9 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
                                   quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                                   COVARS = NULL,
                                   center = TRUE,  
+                                  CI_level = 95,
+                                  MCMC = FALSE,
+                                  Nsamples = 10000,
                                   plot_type = 'residuals', plot_title=NULL, DV_range=NULL,
                                   Xaxis_label=NULL, Yaxis_label=NULL, legend_label=NULL,
                                   JN_type = 'Huitema',
@@ -110,7 +113,7 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     rm(donnesRED, donnesNUM, donnesFAC)
   }
   
-
+  
   
   modelMAIN <- lm(formMAIN, data=donnes, model=TRUE, x=TRUE, y=TRUE)
   
@@ -118,12 +121,62 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   
   RsqMAIN <- modelMAINsum$r.squared
   
-  # creating a new version of the raw data, from the lm output, so that can provide stats for dummy codes
+  # Using the classical R^2 test statistic for (linear) regression designs, 
+  # this function computes the corresponding Bayes factor test
+  # the Bayes factor (against the intercept-only null)
+  Nvars <- ncol(donnes) - 1
+  BF_mod_Rsq <- linearReg.R2stat(R2 = RsqMAIN, N = nrow(donnes), p = Nvars, 
+                                 simple = TRUE)
+  
+  # creating a new version of the raw data, from the lm output, 
+  # so that can provide stats for dummy codes
   # modeldata is needed for moderation analyses (next)
   modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
   colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
   
-  mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+  mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
+                              modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+  
+  if (MCMC) {
+    
+    mod_lmBF <- lmBF(formMAIN, data = donnes)
+    
+    chains <- posterior(mod_lmBF, iterations = Nsamples, progress = FALSE)
+    
+    Nests <- ncol(chains) - 2
+    
+    # parameters estimates & CIs
+    ests <- colMeans(chains[,1:Nests])
+    quant_size <- (100 - CI_level) / 2
+    quant_lb <- quant_size * .01
+    quant_ub <- (100 - quant_size) * .01
+    ests_ci_lb <- apply(chains[,1:Nests],2,quantile,probs=quant_lb)
+    ests_ci_ub <- apply(chains[,1:Nests],2,quantile,probs=quant_ub)
+    
+    # https://cran.r-project.org/web/packages/BayesFactor/vignettes/manual.html#regression
+    # The results are quite similar, apart from the intercept. This is due to the 
+    # Bayesian model centering the covariates before analysis, so the mu parameter 
+    # is the mean of  rather than the expected value of the response variable 
+    # when all uncentered covariates are equal to 0.
+    
+    # standardized estimates & CIs
+    SD_preds <- apply(donnes,2,sd)
+    ests_z <- c(NA, (ests[-1] * SD_preds[-1]) / SD_preds[1])
+    ests_z_ci_lb <- c(NA, (ests_ci_lb[-1] * SD_preds[-1]) / SD_preds[1])
+    ests_z_ci_ub <- c(NA, (ests_ci_ub[-1] * SD_preds[-1]) / SD_preds[1])
+    
+    # Bayes factors - for the estimates, from just t & N
+    t_values <- modelMAINsum$coefficients[,3]
+    BF_ests_h1h0 <- unlist(sapply(t_values, ttest.tstat, n1 = nrow(donnes), simple=TRUE))
+    BF_ests_h0h1 <- 1 / BF_ests_h1h0
+    
+    Bayes_ests <- cbind(ests, ests_ci_lb, ests_ci_ub, 
+                        ests_z, ests_z_ci_lb, ests_z_ci_ub,
+                        BF_ests_h1h0, BF_ests_h0h1)
+    rownames(Bayes_ests)[1] <- 'Intercept'
+    
+    prevmod_lmBF <- mod_lmBF
+  }
   
   modeldata$predicted <- modelMAIN$fitted.values
   
@@ -141,11 +194,11 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   
   if (verbose) {
     
-      message('\n\nThe DV is: ', DV)
-      message('\nThe IV is: ', IV)
-      message('\nThe MOD is: ', MOD)
-      message('\n\nMultiple regression statistics for when the product term is not in the model:')
-
+    message('\n\nThe DV is: ', DV)
+    message('\nThe IV is: ', IV)
+    message('\nThe MOD is: ', MOD)
+    message('\n\nMultiple regression statistics for when the product term is not in the model:')
+    
     message('\n\nmultiple R = ', round(sqrt(RsqMAIN),3),  
             '   multiple R-squared = ', round(RsqMAIN,3),
             '   adjusted R-squared = ', round(modelMAINsum$adj.r.squared,3))
@@ -156,12 +209,25 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     message('\nF = ', round(Fstats[1],2), '   df_num = ', Fstats[2], '   df_denom = ', Fstats[3], 
             '   p-value = ', round(pvalue,6), '\n')
     
+    BF_interps(BF_10 = BF_mod_Rsq, BF_01 = (1 / BF_mod_Rsq) )
+    
     modelMAINsum$coefficients <- cbind(modelMAINsum$coefficients, confint(modelMAIN))
-    message('\nModel Coefficients:\n')
+    message('\n\nModel Coefficients:\n')
     print(round_boc(modelMAINsum$coefficients,3), print.gap=4)
     
     message('\nBeta, r, partial correlations, & semi-partial correlations:\n')
     print(round(mainRcoefs,3), print.gap=4)	
+    
+    if (MCMC) {
+      
+      message('\nBayesian Raw and Standardized Coefficients and Bayes Factors:\n')
+      
+      colnames(Bayes_ests) <- cbind('b', 'b_ci_lb', 'b_ci_ub', 
+                                    'Beta', 'Beta_ci_lb', 'Beta_ci_ub',
+                                    'BF_10', 'BF_01')
+      
+      print(round_boc(Bayes_ests, round_non_p = 2, round_p = 5), print.gap=4)
+    }
     
     message('\n\nCorrelation matrix:\n')
     # if (!is.null(forced)) print(round(cor(modeldata[,c(DV,forced)]),3), print.gap=4)		
@@ -215,11 +281,58 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   
   RsqXN <- modelXNsum$r.squared
   
+  # Using the classical R^2 test statistic for (linear) regression designs, 
+  # this function computes the corresponding Bayes factor test
+  # the Bayes factor (against the intercept-only null)
+  Nvars <- ncol(don5) - 1
+  BF_mod_Rsq <- linearReg.R2stat(R2 = RsqXN, N = nrow(don5), p = Nvars, 
+                                 simple = TRUE)
+  
   # XN vs MAIN model comparisons	
   RsqchXn <- RsqXN - RsqMAIN	
   fsquaredXN <- (RsqXN - RsqMAIN) / (1 - RsqXN)	
   
-  xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(IV,MODnew,PROD,COVARS)]), modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
+  xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), 
+                            modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
+  
+  if (MCMC) {
+    
+    mod_lmBF <- lmBF(formXn, data = don5)
+    
+    chains <- posterior(mod_lmBF, iterations = Nsamples, progress = FALSE)
+    
+    Nests <- ncol(chains) - 2
+    
+    # parameters estimates & CIs
+    ests <- colMeans(chains[,1:Nests])
+    quant_size <- (100 - CI_level) / 2
+    quant_lb <- quant_size * .01
+    quant_ub <- (100 - quant_size) * .01
+    ests_ci_lb <- apply(chains[,1:Nests],2,quantile,probs=quant_lb)
+    ests_ci_ub <- apply(chains[,1:Nests],2,quantile,probs=quant_ub)
+    
+    # https://cran.r-project.org/web/packages/BayesFactor/vignettes/manual.html#regression
+    # The results are quite similar, apart from the intercept. This is due to the 
+    # Bayesian model centering the covariates before analysis, so the mu parameter 
+    # is the mean of  rather than the expected value of the response variable 
+    # when all uncentered covariates are equal to 0.
+    
+    # standardized estimates & CIs
+    SD_preds <- apply(don5[,c(DV,IV,MODnew,COVARS,PROD)],2,sd)
+    ests_z <- c(NA, (ests[-1] * SD_preds[-1]) / SD_preds[1])
+    ests_z_ci_lb <- c(NA, (ests_ci_lb[-1] * SD_preds[-1]) / SD_preds[1])
+    ests_z_ci_ub <- c(NA, (ests_ci_ub[-1] * SD_preds[-1]) / SD_preds[1])
+    
+    # Bayes factors - for the estimates, from just t & N
+    t_values <- modelXNsum$coefficients[,3]
+    BF_ests_h1h0 <- unlist(sapply(t_values, ttest.tstat, n1 = nrow(don5), simple=TRUE))
+    BF_ests_h0h1 <- 1 / BF_ests_h1h0
+    
+    Bayes_ests <- cbind(ests, ests_ci_lb, ests_ci_ub, 
+                        ests_z, ests_z_ci_lb, ests_z_ci_ub,
+                        BF_ests_h1h0, BF_ests_h0h1)
+    rownames(Bayes_ests)[1] <- 'Intercept'
+  }
   
   modeldata$predicted <- modelXN$fitted.values
   
@@ -263,12 +376,35 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     message('\nF = ', round(fish$F[2],2), '   df_num = ', 1, '   df_denom = ', fish$Res.Df[1], 
             '   p-value = ', round(fish$'Pr(>F)'[2],6), '\n')
     
+    if (MCMC) {
+      
+      prevmod_lmBF@data <- mod_lmBF@data
+      
+      BF_change <- mod_lmBF / prevmod_lmBF
+      
+      BF_change <- as.numeric(unlist(extractBF(BF_change))[1])
+      
+      BF_interps(BF_M2 = BF_change)
+      
+    }
+    
     modelXNsum$coefficients <- cbind(modelXNsum$coefficients, confint(modelXN))
-    message('\nModel Coefficients:\n')
+    message('\n\nModel Coefficients:\n')
     print(round(modelXNsum$coefficients,3), print.gap=4)
     
     message('\nBeta, r, partial correlations, & semi-partial correlations:\n')
     print(round(xnRcoefs,3), print.gap=4)
+    
+    if (MCMC) {
+      
+      message('\nBayesian Raw and Standardized Coefficients and Bayes Factors:\n')
+      
+      colnames(Bayes_ests) <- cbind('b', 'b_ci_lb', 'b_ci_ub', 
+                                    'Beta', 'Beta_ci_lb', 'Beta_ci_ub',
+                                    'BF_10', 'BF_01')
+      
+      print(round_boc(Bayes_ests, round_non_p = 2, round_p = 5), print.gap=4)
+    }
   }	
   
   

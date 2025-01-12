@@ -8,13 +8,18 @@
     Anova Table (Type III tests), standardized coefficients, 
     partial and semi-partial correlations, collinearity statistics,
     casewise regression diagnostics, plots of residuals and regression diagnostics, 
-    and detailed information about simple slopes.}
+    and detailed information about simple slopes.
+    The output includes Bayes Factors and, if requested, regression coefficients from
+    Bayesian Markov Chain Monte Carlo (MCMC) analyses.}
 \usage{MODERATED_REGRESSION(data, DV, IV, MOD,
                      IV_type = 'numeric', IV_range = 'tumble',
                      MOD_type='numeric', MOD_levels='quantiles', MOD_range=NULL,
                      quantiles_IV = c(.1, .9), quantiles_MOD = c(.25, .5, .75),
                      COVARS = NULL,
                      center = TRUE, 
+                     CI_level = 95,
+                     MCMC = FALSE,
+                     Nsamples = 10000,
                      plot_type = 'residuals', plot_title = NULL, DV_range = NULL,
                      Xaxis_label = NULL, Yaxis_label = NULL, legend_label = NULL,
                      JN_type = 'Huitema', 
@@ -97,6 +102,16 @@
   (default = TRUE).
   \cr Example: center = FALSE}
   	    
+ \item{CI_level}{
+  \code{}(optional) The confidence interval for the output, in whole numbers.
+  The default is 95.}
+
+ \item{MCMC}{
+  \code{}(logical) Should Bayesian MCMC analyses be conducted? The default is FALSE.}
+
+ \item{Nsamples}{
+  \code{}(optional) The number of samples for MCMC analyses. The default is 10000.}
+
   \item{plot_type}{
   \code{}(optional)  The kind of plot, if any. The options are:
   \itemize{
@@ -138,6 +153,13 @@
   \code{}Should detailed results be displayed in console? The options are: 
   TRUE (default) or FALSE. If TRUE, plots of residuals are also produced.}
 }
+\details{
+	The Bayesian MCMC analyses can be time-consuming for larger datasets. The MCMC 
+	analyses are conducted using functions, and their default settings, from the 
+	BayesFactor package (Morey & Rouder, 2024).
+	The MCMC results can be verified using the model checking functions in the
+	rstanarm package (e.g., Muth, Oravecz, & Gabry, 201).
+}
 \value{An object of class "MODERATED_REGRESSION". The object is a list containing the
 	following possible components:
 \item{modelMAINsum}{All of the summary.lm function output for the regression model 
@@ -171,6 +193,15 @@
 \cr\cr {Hayes, A. F., & Montoya, A. K. (2016). A tutorial on testing, visualizing, and probing 
 	    an interaction involving a multicategorical variable in linear regression analysis. 
 	    \emph{Communication Methods and Measures, 11,} 1-30.}
+\cr\cr {Lee M. D., & Wagenmakers, E. J. (2014) \emph{Bayesian cognitive modeling: A practical 
+        course.} Cambridge University Press.}
+\cr\cr {Morey, R. & Rouder, J. (2024). \emph{BayesFactor: Computation of Bayes Factors for 
+        Common Designs.} R package version 0.9.12-4.7, 
+        https://github.com/richarddmorey/bayesfactor.}
+\cr\cr {Muth, C., Oravecz, Z., & Gabry, J. (2018). User-friendly Bayesian regression 
+        modeling: A tutorial with rstanarm and shinystan. \emph{The Quantitative Methods 
+        for Psychology, 14(2),} 99119. 
+        \cr https://doi.org/10.20982/tqmp.14.2.p099}
 \cr\cr {O'Connor, B. P. (1998). All-in-one programs for exploring interactions in moderated 
 	multiple regression. \emph{Educational and Psychological Measurement, 58,} 833-837.}
 \cr\cr {Pedhazur, E. J. (1997). \emph{Multiple regression in behavioral research: Explanation 

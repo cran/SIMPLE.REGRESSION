@@ -3,6 +3,92 @@
 
 
 
+BF_interps <- function(BF_10 = NULL, BF_01 = NULL, BF_M1 = NULL, BF_M2 = NULL) {
+  
+  # null & alternative
+  if (is.null(BF_10) & !is.null(BF_01))  BF_10 <- 1 / BF_01
+  if (is.null(BF_01) & !is.null(BF_10))  BF_01 <- 1 / BF_10
+  
+  if (!is.null(BF_10) & !is.null(BF_01)) {
+    
+    message('\nBayes Factor for the null vs. alternative models: ', round(BF_01,2))
+    message('\nBayes Factor for the alternative vs. null models: ', round(BF_10,2))
+    
+    message('\nThe Bayes factor suggests that the observed data are ', round(BF_01,2), ' times more likely')
+    message('to occur under the null hypothesis than under the alternative hypothesis.')
+    message('\nAlternatively, the observed data are ', round(BF_10,2), ' times more likely to occur')
+    message('under the alternative hypothesis than under the null hypothesis.')
+    
+    # 2016 - Diagnosing the Misuse of the Bayes Factor in Applied Research p 4
+    if (BF_01 > BF_10) {
+      message('\nSomeone with no prior preference for either hypothesis (i.e., prior odds = 1)')
+      message('should now believe that the null model is ', BF_01, ' times more probable')
+      message('than the alternative model (i.e., posterior odds = ', BF_01, ' x 1 = ', BF_01, ').')
+    }
+    
+    if (BF_10 > BF_01) {
+      message('\nSomeone with no prior preference for either hypothesis (i.e., prior odds = 1)')
+      message('should now believe that the alternative model is ', BF_10, ' times more probable')
+      message('than the null model (i.e., posterior odds = ', BF_10, ' x 1 = ', BF_10, ').\ n')
+    }
+    
+    if (BF_10 > BF_01) hyp <- 'alternative'
+    if (BF_01 > BF_10) hyp <- 'null'
+    
+    # Jeffreys' scale | Grades or categories of evidence for the Bayes factor
+    # Lee M. D. and Wagenmakers, E.-J. (2014) Bayesian cognitive modeling: A 
+    # practical course, Cambridge University Press.
+    maxBF <- max(c(BF_10, BF_01))
+    if (maxBF >= 1  & maxBF < 3)   descr <- 'Anecdotal'
+    if (maxBF >= 3  & maxBF < 10)  descr <- 'Moderate'
+    if (maxBF >= 10 & maxBF < 30)  descr <- 'Strong'
+    if (maxBF >= 30 & maxBF < 100) descr <- 'Very Strong'
+    if (maxBF >  100)              descr <- 'Extreme'
+    
+    message('\nThis level of evidence in favor of the ', hyp, ' hypothesis is') 
+    message('considered "', descr,'" according to Lee & Wagenmakers (2014).')
+  }
+  
+  # M1 & M2
+  if (is.null(BF_M2) & !is.null(BF_M1))  BF_M2 <- 1 / BF_M1
+  if (is.null(BF_M1) & !is.null(BF_M2))  BF_M1 <- 1 / BF_M2
+  
+  if (!is.null(BF_M2) & !is.null(BF_M1)) {
+    
+    message('\n    Bayes Factor for the previous vs. current models: ', round(BF_M1,2))
+    message('\n    Bayes Factor for the current vs. previous models: ', round(BF_M2,2))
+    
+    message('\n    The Bayes factor suggests that the data are ', round(BF_M1,2), ' times more likely')
+    message('    to occur under the previous model than under the current model.')
+    message('\n    Alternatively, the data are ', round(BF_M2,2), ' times more likely to occur')
+    message('    under the current model than under the previous model.')
+    
+    if (BF_M2 > BF_M1) hyp <- 'current'
+    if (BF_M1 > BF_M2) hyp <- 'previous'
+    
+    maxBF <- max(c(BF_M2, BF_M1))
+    if (maxBF >= 1  & maxBF < 3)   descr <- 'Anecdotal'
+    if (maxBF >= 3  & maxBF < 10)  descr <- 'Moderate'
+    if (maxBF >= 10 & maxBF < 30)  descr <- 'Strong'
+    if (maxBF >= 30 & maxBF < 100) descr <- 'Very Strong'
+    if (maxBF >  100)              descr <- 'Extreme'
+    
+    message('\n    This level of evidence in favor of the ', hyp, ' hypothesis is') 
+    message('    considered "', descr,'" according to Lee & Wagenmakers (2014).')
+  }
+}
+
+# BF_interps(BF_10 = 3.2, BF_01 = 1/3.2)
+# 
+# BF_interps(BF_10 = 3.2)
+# 
+# BF_interps(BF_M1 = 3.2, BF_M2 = 1/3.2)
+
+
+
+
+
+
 # Anova Table (Type III tests)
 
 ANOVA_TABLE <- function(data, model) {
@@ -162,7 +248,8 @@ diagnostics_plots <- function(modelMAIN, modeldata, plot_diags_nums) {
       # densities of y and yhat
       # The predicted values from a model will appear similar to y if the model is 
       # well-fit. We hope to see that the distributions are about the same for each model.
-      DV_name <- names(attr(modelMAIN$terms,"dataClasses")[1])
+      # DV_name <- names(attr(modelMAIN$terms,"dataClasses")[1])
+      DV_name <- names(modeldata)[1]
       
       denplotdat_y     <- density(modelMAIN$y)
       denplotdat_ypred <- density(modeldata$predicted)
@@ -170,14 +257,15 @@ diagnostics_plots <- function(modelMAIN, modeldata, plot_diags_nums) {
       plot(denplotdat_y,
            xlab = DV_name,
            ylim = c(0, ymax),
-           main = paste('Original & Predicted "', DV_name, '"', sep=''))
+           main = paste('Original & Predicted ', DV_name, sep=''))
       lines(denplotdat_ypred, col='red')
-      if (Nplots == 1)
-        legend("topleft", legend=c("Orig.", "Pred."), col=c("black", "red"), lty=1, cex=0.8)
+      if (Nplots < 3)
+        legend("topright", legend=c("Orig.", "Pred."), col=c("black", "red"), lty=1, cex=0.8)
     }
     
     if (is.element(10, plot_diags_nums)) {
       # Predicted (Fitted) Values & quantile residuals
+      modeldata$residuals_quantile[is.infinite(modeldata$residuals_quantile)] <- NA
       plot(modeldata$predicted, modeldata$residuals_quantile, col='gray',
            xlab = 'Predicted Outcome',
            ylab = 'Quantile Residuals',
@@ -188,6 +276,7 @@ diagnostics_plots <- function(modelMAIN, modeldata, plot_diags_nums) {
     
     if (is.element(11, plot_diags_nums)) {
       # Q-Q plot with quantile residuals to determine if our chosen distribution makes sense.
+      modeldata$residuals_quantile[is.infinite(modeldata$residuals_quantile)] <- NA
       qqnorm(modeldata$residuals_quantile,
              main = 'Q-Q plot: Quantile Residuals')
       qqline(modeldata$residuals_quantile, col = 'red', lwd = 2)
@@ -300,10 +389,10 @@ quantile_residuals <- function(model) {
     maxs <- pbinom(y, n, y_fitted)
   }
   
-  if (model$family$family == 'poisson') {
+  if (model$family$family == 'poisson' | model$family$family == 'quasipoisson') {
     
     mins <- ppois(y_orig - 1, y_fitted)
-    maxs <- ppois(y_orig, y_fitted)
+    maxs <- ppois(y_orig,     y_fitted)
   }
   
   if (grepl("Negative Binomial", model$family$family, fixed = TRUE)) {
@@ -329,7 +418,7 @@ quantile_residuals <- function(model) {
 # https://stackoverflow.com/questions/38109501/how-does-predict-lm-compute-confidence-interval-and-prediction-interval/38110406#38110406
 
 predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95, 
-                        bootstrap=FALSE, N_sims=1000, model_type, family) {
+                        bootstrap=FALSE, N_sims=100, model_type, family) {
   
   # # doing yhat manually, rather than using built-in predict  prob = factors
   # Xp <- model.matrix(delete.response(terms(modelMAIN)), newdata)
@@ -338,7 +427,8 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
   
   yhatR <- predict(modelMAIN, newdata=newdata, type="response", se.fit = TRUE)  # type="link"
   
-  yhat <- yhatR$fit
+  if (family == 'zinfl_poisson' | family == 'zinfl_negbin') { yhat <- yhatR
+  } else { yhat <- yhatR$fit }
   
   
   # CIs
@@ -347,12 +437,12 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
   # for product terms & lm & glm sometimes alter the var names for interaction terms, too messy
   if (bootstrap & model_type == 'MODERATED') {
     message('\nBootstrapped CIs for a MODERATED regression model was requested but it is not')
-    message('available in this version of the package. Regular CI values will be provided instead\n')
-    
+    message('available in this version of the package. Regular CI values will be provided instead.\n')
     bootstrap <- FALSE
   }  
   
-  if (!bootstrap) {
+  
+  if (!bootstrap & (family != 'zinfl_poisson' | family != 'zinfl_negbin')) {
     
     # # doing se.fit manually, rather than using built-in predict  prob = factors
     # var.fit <- rowSums((Xp %*% vcov(modelMAIN)) * Xp)  # point-wise variance for predicted mean
@@ -401,7 +491,8 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
       }
     }
     
-    if (model_type != 'OLS') {
+    if (model_type == 'LOGISTIC' | family == 'poisson' |
+        family == 'quasipoisson' | family == 'negbin') {
       
       for(i in 1:N_sims) {
         
@@ -412,6 +503,31 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
         bootparams <- rbind(bootparams, coef(modelboot))
       }
     }
+    
+    if (family == 'zinfl_poisson') {
+      
+      for(i in 1:N_sims) {
+        
+        bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
+        
+        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist='poisson', data=bootsamp)
+        
+        bootparams <- rbind(bootparams, coef(modelboot))
+      }
+    }
+    
+    if (family == 'zinfl_negbin') {
+      
+      for(i in 1:N_sims) {
+        
+        bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
+        
+        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist='negbin', data=bootsamp)
+        
+        bootparams <- rbind(bootparams, coef(modelboot))
+      }
+    }
+    
     
     ci_lb <- ci_ub <- rep(NA,nrow(newdata))
     
@@ -437,7 +553,8 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
     
     for (lupe in 1:nrow(Xp)) {
       
-      simmu <- bootparams %*% Xp[lupe,]  
+      if (family == 'zinfl_poisson' | family == 'zinfl_negbin') { simmu <- bootparams %*% cbind(Xp,Xp)[lupe,]
+      } else { simmu <- bootparams %*% Xp[lupe,] }
       
       simmu <- sort(simmu)
       
@@ -459,6 +576,7 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
     
     resmat <- cbind(yhat, ci_lb, ci_ub)
   }
+  
   
   # 
   # if (!bootstrap) {

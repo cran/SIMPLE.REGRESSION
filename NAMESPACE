@@ -21,3 +21,10 @@ importFrom("utils", head, packageDescription, tail)
 importFrom("MASS", mvrnorm, negative.binomial)
 
 importFrom("grDevices", rainbow)
+
+importFrom(BayesFactor, ttest.tstat, anovaBF, extractBF, ttestBF, posterior,
+           lmBF, linearReg.R2stat)
+
+importFrom(rstanarm, posterior_interval, stan_glm, neg_binomial_2)
+
+importFrom(pscl, zeroinfl, vuong)

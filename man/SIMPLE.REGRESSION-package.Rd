@@ -7,12 +7,14 @@
 \title{SIMPLE.REGRESSION}
 
 \description{Provides SPSS- and SAS-like output for least squares multiple regression,
-    logistic regression, and Poisson regression. Detailed output is also provided for
+    logistic regression, and count variable regressions. Detailed output is also provided for
     OLS moderated regression, interaction plots, and Johnson-Neyman
     regions of significance. The output includes standardized
     coefficients, partial and semi-partial correlations, collinearity diagnostics,
     plots of residuals, and detailed information about simple slopes for interactions. 
-    There are numerous options for model plots. 
+    The output for some functions includes Bayes Factors and, if requested,  
+    regression coefficients from Bayesian Markov Chain Monte Carlo (MCMC) analyses.
+    There are numerous options for model plots.
     \cr\cr The REGIONS_OF_SIGNIFICANCE function also provides
     Johnson-Neyman regions of significance and plots of interactions for both lm
     and lme models (lme models are from the nlme package).

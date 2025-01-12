@@ -8,7 +8,7 @@ LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
            IV_focal_1, IV_focal_1_values=NULL, 
            IV_focal_2=NULL, IV_focal_2_values=NULL, 
            IVs_nonfocal_values = NULL,
-           bootstrap=FALSE, N_sims=1000, CI_level=95, 
+           bootstrap=FALSE, N_sims=100, CI_level=95, 
            xlim=NULL, xlab=NULL,
            ylim=NULL, ylab=NULL,
            title = NULL,
@@ -116,7 +116,7 @@ PLOT_MODEL(model = ols_GS,
            IV_focal_1 = 'gluts', IV_focal_1_values=NULL,
            IV_focal_2='age', IV_focal_2_values=NULL, 
            IVs_nonfocal_values = NULL,
-           bootstrap=TRUE, N_sims=1000, CI_level=95, 
+           bootstrap=TRUE, N_sims=100, CI_level=95, 
            ylim=NULL, ylab=NULL, title=NULL,
            verbose=TRUE) 
 \donttest{	
@@ -131,7 +131,7 @@ MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden', MOD=
 PLOT_MODEL(model = ols_LW, 
            IV_focal_1 = 'burden', IV_focal_1_values=NULL,
            IV_focal_2='belong_thwarted', IV_focal_2_values=NULL, 
-           bootstrap=TRUE, N_sims=1000, CI_level=95) 
+           bootstrap=TRUE, N_sims=100, CI_level=95) 
                      
 logmod_Meyers <- 
   LOGISTIC_REGRESSION(data= data_Meyers_2013, DV='graduated', 
@@ -140,7 +140,7 @@ logmod_Meyers <-
 PLOT_MODEL(model = logmod_Meyers, 
            IV_focal_1 = 'family_encouragement', IV_focal_1_values=NULL,
            IV_focal_2=NULL, IV_focal_2_values=NULL, 
-           bootstrap=FALSE, N_sims=1000, CI_level=95) 
+           bootstrap=FALSE, N_sims=100, CI_level=95) 
            
 pois_Krem <-
   COUNT_REGRESSION(data=data_Kremelburg_2011, DV='OVRJOYED', forced=NULL, 
@@ -151,6 +151,7 @@ PLOT_MODEL(model = pois_Krem,
            IV_focal_1 = 'AGE', 
            IV_focal_2='DEGREE',
            IVs_nonfocal_values = list( EDUC = 5, SEX_factor = '2'),
-           bootstrap=FALSE, N_sims=1000, CI_level=95) 
+           bootstrap=FALSE, N_sims=100, CI_level=95) 
+           
 }
 }
