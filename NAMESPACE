@@ -20,7 +20,7 @@ importFrom("utils", head, packageDescription, tail)
 
 importFrom("MASS", mvrnorm, negative.binomial)
 
-importFrom("grDevices", rainbow)
+importFrom("grDevices", bitmap, bmp, dev.off, jpeg, png, tiff, rainbow)
 
 importFrom(BayesFactor, ttest.tstat, anovaBF, extractBF, ttestBF, posterior,
            lmBF, linearReg.R2stat)

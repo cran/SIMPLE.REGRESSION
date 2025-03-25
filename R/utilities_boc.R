@@ -414,21 +414,26 @@ quantile_residuals <- function(model) {
 
 
 
+
 # portions adapted from 
 # https://stackoverflow.com/questions/38109501/how-does-predict-lm-compute-confidence-interval-and-prediction-interval/38110406#38110406
 
 predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95, 
                         bootstrap=FALSE, N_sims=100, model_type, family) {
   
-  # # doing yhat manually, rather than using built-in predict  prob = factors
+  # # computing yhat manually, rather than using built-in predict  NOT USING  prob = factors
   # Xp <- model.matrix(delete.response(terms(modelMAIN)), newdata)
   # b <- coef(modelMAIN)
   # yhat <- c(Xp %*% b)  # c() reshape the single-column matrix to a vector
   
-  yhatR <- predict(modelMAIN, newdata=newdata, type="response", se.fit = TRUE)  # type="link"
-  
-  if (family == 'zinfl_poisson' | family == 'zinfl_negbin') { yhat <- yhatR
-  } else { yhat <- yhatR$fit }
+  if (model_type == 'ZINFL') {
+    yhat_count <- predict(modelMAIN, newdata=newdata, type="count")
+    yhat_zero  <- predict(modelMAIN, newdata=newdata, type="zero")
+  } else {
+    yhatR <- predict(modelMAIN, newdata=newdata, type="response", se.fit = TRUE)
+    yhat <- yhatR$fit
+    yhat_se.fit <- yhatR$se.fit
+  }
   
   
   # CIs
@@ -442,42 +447,51 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
   }  
   
   
-  if (!bootstrap & (family != 'zinfl_poisson' | family != 'zinfl_negbin')) {
+  if (!bootstrap) {
     
-    # # doing se.fit manually, rather than using built-in predict  prob = factors
-    # var.fit <- rowSums((Xp %*% vcov(modelMAIN)) * Xp)  # point-wise variance for predicted mean
-    # se.fit <- sqrt(var.fit)
+    if (model_type != 'ZINFL') {
+      
+      # # computing se.fit manually, rather than using built-in predict  NOT USING  prob = factors
+      # var.fit <- rowSums((Xp %*% vcov(modelMAIN)) * Xp)  # point-wise variance for predicted mean
+      # se.fit <- sqrt(var.fit)
+      
+      zforCI <- qnorm((1 + CI_level * .01) / 2)
+      
+      ci_lb <- yhat - zforCI * yhat_se.fit
+      
+      ci_ub <- yhat + zforCI * yhat_se.fit
+      
+      resmat <- cbind(yhat, ci_lb, ci_ub, yhat_se.fit)
+      
+      # # not needed when  type="response" on the above predict command
+      # if (model_type == 'LOGISTIC')
+      # # convert to probabilities
+      #   resmat <- 1/(1 + exp(-resmat))
+      # 
+      # if (model_type == 'COUNT')
+      # # exponential function - inverse of log-link
+      #   resmat <- exp(resmat)
+      
+      # resmat <- cbind(resmat, yhat_se.fit)
+    }
     
-    se.fit <- yhatR$se.fit
-    
-    zforCI <- qnorm((1 + CI_level * .01) / 2)
-    
-    ci_lb <- yhat - zforCI * se.fit
-    
-    ci_ub <- yhat + zforCI * se.fit
-    
-    resmat <- cbind(yhat, ci_lb, ci_ub)
-    
-    # # not needed when  type="response" on the above predict command
-    # if (model_type == 'LOGISTIC')
-    # # convert to probabilities
-    #   resmat <- 1/(1 + exp(-resmat))
-    # 
-    # if (model_type == 'COUNT')
-    # # exponential function - inverse of log-link
-    #   resmat <- exp(resmat)
-    
-    resmat <- cbind(resmat, se.fit)
+    if (model_type == 'ZINFL') {
+      
+      ci_lb_count <- ci_ub_count <- ci_lb_zero <- ci_ub_zero <- rep(NA, length(yhat_count))
+      
+      resmat <- cbind(yhat_count, ci_lb_count, ci_ub_count, yhat_zero, ci_lb_zero, ci_ub_zero)
+    }
   }
+  
   
   if (bootstrap) {
     
-    # simulating parameters using the model
+    # simulating parameters using the model -- NOT USING
     # simulate a range of plausible models based on distribution of parameters from model fit 
     # bootparams <- mvrnorm(n=N_sims, mu=coef(modelMAIN), Sigma=vcov(modelMAIN))
     
     # real bootstrap parameters
-    bootparams <- c() 
+    predicted_values <- predicted_values_count <- predicted_values_zero <- c()
     
     if (model_type == 'OLS') {
       
@@ -487,12 +501,11 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
         
         modelboot <- lm(formula(modelMAIN), data=bootsamp)
         
-        bootparams <- rbind(bootparams, coef(modelboot))
+        predicted_values <- cbind(predicted_values, predict(modelboot, newdata=newdata, type="response"))
       }
     }
     
-    if (model_type == 'LOGISTIC' | family == 'poisson' |
-        family == 'quasipoisson' | family == 'negbin') {
+    if (model_type == 'LOGISTIC' | model_type == 'COUNT') {
       
       for(i in 1:N_sims) {
         
@@ -500,85 +513,52 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
         
         modelboot <- glm(modelMAIN$formula, family = family, data=bootsamp)
         
-        bootparams <- rbind(bootparams, coef(modelboot))
+        predicted_values <- cbind(predicted_values, predict(modelboot, newdata=newdata, type="response"))
       }
     }
     
-    if (family == 'zinfl_poisson') {
+    if (model_type == 'ZINFL') {
+      
+      if (family == 'zinfl_poisson') dist = 'poisson'
+      if (family == 'zinfl_negbin')  dist = 'negbin'
       
       for(i in 1:N_sims) {
         
         bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
         
-        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist='poisson', data=bootsamp)
+        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist=dist, data=bootsamp)
         
-        bootparams <- rbind(bootparams, coef(modelboot))
+        predicted_values_count <- cbind(predicted_values_count, 
+                                        predict(modelboot, newdata=newdata, type='count'))
+        predicted_values_zero  <- cbind(predicted_values_zero,  
+                                        predict(modelboot, newdata=newdata, type='zero'))
       }
     }
-    
-    if (family == 'zinfl_negbin') {
-      
-      for(i in 1:N_sims) {
-        
-        bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
-        
-        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist='negbin', data=bootsamp)
-        
-        bootparams <- rbind(bootparams, coef(modelboot))
-      }
-    }
-    
-    
-    ci_lb <- ci_ub <- rep(NA,nrow(newdata))
     
     CI_lo_cut <- (1 - CI_level * .01) / 2
     
     CI_hi_cut <- 1 - (1 - CI_level * .01) / 2
     
-    # Xp <- model.matrix(delete.response(terms(modelMAIN)), newdata)   # does not work for factors
-    # Xp <- model.frame(delete.response(terms(modelMAIN)), newdata)
-    
-    Xp <- newdata
-    
-    # change factors to numeric, use 0 as baseline
-    for (lupe in 1:ncol(Xp)) {
-      if (is.factor(Xp[,lupe])) {
-        Xp[,lupe] <- as.numeric(Xp[,lupe])
-        Xp[,lupe] <- 0
-      }
-    }
-    
-    # add 1st column of 1s
-    Xp <- cbind(1, as.matrix(Xp))
-    
-    for (lupe in 1:nrow(Xp)) {
+    if (model_type == 'OLS' | model_type == 'LOGISTIC' | model_type == 'COUNT') {
       
-      if (family == 'zinfl_poisson' | family == 'zinfl_negbin') { simmu <- bootparams %*% cbind(Xp,Xp)[lupe,]
-      } else { simmu <- bootparams %*% Xp[lupe,] }
+      ci_lb <- apply(predicted_values, 1, quantile, probs=CI_lo_cut)
+      ci_ub <- apply(predicted_values, 1, quantile, probs=CI_hi_cut)
       
-      simmu <- sort(simmu)
+      resmat <- cbind(yhat, ci_lb, ci_ub)
+    }
+    
+    if (model_type == 'ZINFL') {
       
-      ci_lb[lupe] <- quantile(simmu, CI_lo_cut)    
-      ci_ub[lupe] <- quantile(simmu, CI_hi_cut)
+      ci_lb_count <- apply(predicted_values_count, 1, quantile, probs=CI_lo_cut)
+      ci_ub_count <- apply(predicted_values_count, 1, quantile, probs=CI_hi_cut)
+      
+      ci_lb_zero  <- apply(predicted_values_zero,  1, quantile, probs=CI_lo_cut)
+      ci_ub_zero  <- apply(predicted_values_zero,  1, quantile, probs=CI_hi_cut)
+      
+      resmat <- cbind(yhat_count, ci_lb_count, ci_ub_count, yhat_zero, ci_lb_zero, ci_ub_zero)
     }
-    
-    if (model_type == 'LOGISTIC') {
-      # convert to probabilities
-      ci_lb <- 1/(1 + exp(-ci_lb))   
-      ci_ub <- 1/(1 + exp(-ci_ub))   
-    }
-    
-    if (model_type == 'COUNT') {
-      # exponential function - inverse of log-link
-      ci_lb <- exp(ci_lb)   
-      ci_ub <- exp(ci_ub) 
-    }
-    
-    resmat <- cbind(yhat, ci_lb, ci_ub)
   }
   
-  
-  # 
   # if (!bootstrap) {
   #    
   #   # comparison with built-in predict
@@ -601,114 +581,115 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
 
 
 
-
-# rounds numeric columns in a matrix
-# numeric columns named 'p' or 'plevel' are rounded to round_p places
-# numeric columns not named 'p' are rounded to round_non_p places
-
-round_boc <- function(donnes, round_non_p = 2, round_p = 5) {
   
-  # identify the numeric columns
-  #	numers <- apply(donnes, 2, is.numeric)  # does not work consistently 
-  for (lupec in 1:ncol(donnes)) {
+  # rounds numeric columns in a matrix
+  # numeric columns named 'p' or 'plevel' are rounded to round_p places
+  # numeric columns not named 'p' are rounded to round_non_p places
+  
+  round_boc <- function(donnes, round_non_p = 2, round_p = 5) {
     
-    if (is.numeric(donnes[,lupec]) == TRUE) 
+    # identify the numeric columns
+    #	numers <- apply(donnes, 2, is.numeric)  # does not work consistently 
+    for (lupec in 1:ncol(donnes)) {
       
-      if (colnames(donnes)[lupec] == 'p' | colnames(donnes)[lupec] == 'plevel' | 
-          colnames(donnes)[lupec] == 'Pr(>|t|)' | colnames(donnes)[lupec] == 'Pr(>F)' )  {
-        donnes[,lupec] <- round(donnes[,lupec],round_p)
-      } else {
-        donnes[,lupec] <- round(donnes[,lupec],round_non_p)				
-      }		
-    # if (is.numeric(donnes[,lupec]) == FALSE) numers[lupec] = 'FALSE'		
-    # if (colnames(donnes)[lupec] == 'p') numers[lupec] = 'FALSE'		
+      if (is.numeric(donnes[,lupec]) == TRUE) 
+        
+        if (colnames(donnes)[lupec] == 'p' | colnames(donnes)[lupec] == 'plevel' | 
+            colnames(donnes)[lupec] == 'Pr(>|t|)' | colnames(donnes)[lupec] == 'Pr(>F)' )  {
+          donnes[,lupec] <- round(donnes[,lupec],round_p)
+        } else {
+          donnes[,lupec] <- round(donnes[,lupec],round_non_p)				
+        }		
+      # if (is.numeric(donnes[,lupec]) == FALSE) numers[lupec] = 'FALSE'		
+      # if (colnames(donnes)[lupec] == 'p') numers[lupec] = 'FALSE'		
+    }
+    
+    # # set the p column to FALSE
+    # numers_not_p <- !names(numers) %in% "p"
+    
+    #	donnes[,numers_not_p] = round(donnes[,numers_not_p],round_non_p) 
+    
+    #	if (any(colnames(donnes) == 'p'))  donnes[,'p'] = round(donnes[,'p'],round_p) 
+    
+    return(invisible(donnes))
   }
   
-  # # set the p column to FALSE
-  # numers_not_p <- !names(numers) %in% "p"
-  
-  #	donnes[,numers_not_p] = round(donnes[,numers_not_p],round_non_p) 
-  
-  #	if (any(colnames(donnes) == 'p'))  donnes[,'p'] = round(donnes[,'p'],round_p) 
-  
-  return(invisible(donnes))
-}
-
-
-
-
-
-
-
-
-
-
-# Collinearity Diagnostics
-
-Collinearity <- function(modelmat, verbose=FALSE) {
   
   
-  # Variance Inflation Factors 
-  
-  cormat <- cor(modelmat[,-1,drop=FALSE])  # ignoring the intercept column
-  
-  smc <- 1 - (1 / diag(solve(cormat)))
-  
-  VIF <- 1 / (1 - smc)
-  
-  Tolerance <- 1 / VIF
-  
-  VIFtol <- cbind(Tolerance, VIF)
-  
-  # Eigenvalues, Condition Indices, Condition Number and Condition Index, & Variance Decomposition Proportions (as in SPSS)
-  
-  # adapted from https://stat.ethz.ch/pipermail/r-help/2003-July/036756.html
-  
-  modelmat <- scale(modelmat, center=FALSE) / sqrt(nrow(modelmat) - 1)
-  
-  svd.modelmat <- svd(modelmat)
-  
-  singular.values <- svd.modelmat$d
-  
-  evals <- singular.values **2
-  
-  condition.indices <- max(svd.modelmat$d) / svd.modelmat$d
-  
-  phi <- sweep(svd.modelmat$v**2, 2, svd.modelmat$d**2, "/")
-  
-  VP <- t(sweep(phi, 1, rowSums(phi), "/"))
-  
-  colnames(VP) <- colnames((modelmat))
-  rownames(VP) <- 1:nrow(VP)
   
   
-  CondInd <- data.frame(1:length(evals), cbind(evals, condition.indices, VP))	
-  colnames(CondInd)[1:4] <- c('Dimension','Eigenvalue','Condition Index', 'Intercept')
   
-  if (verbose) {
-    message('\n\nCollinearity Diagnostics:\n')
+  
+  
+  
+  
+  # Collinearity Diagnostics
+  
+  Collinearity <- function(modelmat, verbose=FALSE) {
     
-    #		message('\n\nTolerance and Variance Inflation Factors:\n')
-    print(round(VIFtol, 3), print.gap=4)
-    message('\nThe mean Variance Inflation Factor = ', round(mean(VIFtol[,2]),3))
-    message('\nMulticollinearity is said to exist when VIF values are > 5, or when Tolerance values')
-    message('are < 0.1. Multicollinearity may be biasing a regression model, and there is reason')
-    message('for serious concern, when VIF values are greater than 10.\n\n')
     
-    print(round(CondInd,3), print.gap=4)
-    message('\nThe coefficients for the Intercept and for the predictors are the Variance Proportions.')
+    # Variance Inflation Factors 
     
-    message('\nEigenvalues that differ greatly in size suggest multicollinearity. Multicollinearity is')
-    message('said to exist when the largest condition index is between 10 and 30, and evidence for')
-    message('the problem is strong when the largest condition index is > 30. Multicollinearity is')
-    message('also said to exist when the Variance Proportions (in the same row) for two variables are')
-    message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
-  }	
+    cormat <- cor(modelmat[,-1,drop=FALSE])  # ignoring the intercept column
+    
+    smc <- 1 - (1 / diag(solve(cormat)))
+    
+    VIF <- 1 / (1 - smc)
+    
+    Tolerance <- 1 / VIF
+    
+    VIFtol <- cbind(Tolerance, VIF)
+    
+    # Eigenvalues, Condition Indices, Condition Number and Condition Index, & Variance Decomposition Proportions (as in SPSS)
+    
+    # adapted from https://stat.ethz.ch/pipermail/r-help/2003-July/036756.html
+    
+    modelmat <- scale(modelmat, center=FALSE) / sqrt(nrow(modelmat) - 1)
+    
+    svd.modelmat <- svd(modelmat)
+    
+    singular.values <- svd.modelmat$d
+    
+    evals <- singular.values **2
+    
+    condition.indices <- max(svd.modelmat$d) / svd.modelmat$d
+    
+    phi <- sweep(svd.modelmat$v**2, 2, svd.modelmat$d**2, "/")
+    
+    VP <- t(sweep(phi, 1, rowSums(phi), "/"))
+    
+    colnames(VP) <- colnames((modelmat))
+    rownames(VP) <- 1:nrow(VP)
+    
+    
+    CondInd <- data.frame(1:length(evals), cbind(evals, condition.indices, VP))	
+    colnames(CondInd)[1:4] <- c('Dimension','Eigenvalue','Condition Index', 'Intercept')
+    
+    if (verbose) {
+      message('\n\nCollinearity Diagnostics:\n')
+      
+      #		message('\n\nTolerance and Variance Inflation Factors:\n')
+      print(round(VIFtol, 3), print.gap=4)
+      message('\nThe mean Variance Inflation Factor = ', round(mean(VIFtol[,2]),3))
+      message('\nMulticollinearity is said to exist when VIF values are > 5, or when Tolerance values')
+      message('are < 0.1. Multicollinearity may be biasing a regression model, and there is reason')
+      message('for serious concern, when VIF values are greater than 10.\n\n')
+      
+      print(round(CondInd,3), print.gap=4)
+      message('\nThe coefficients for the Intercept and for the predictors are the Variance Proportions.')
+      
+      message('\nEigenvalues that differ greatly in size suggest multicollinearity. Multicollinearity is')
+      message('said to exist when the largest condition index is between 10 and 30, and evidence for')
+      message('the problem is strong when the largest condition index is > 30. Multicollinearity is')
+      message('also said to exist when the Variance Proportions (in the same row) for two variables are')
+      message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
+    }	
+    
+    simple.Model <- list(VIFtol=VIFtol, CondInd=CondInd)
+    
+    return(invisible(simple.Model))
+    
+    
+  }
   
-  simple.Model <- list(VIFtol=VIFtol, CondInd=CondInd)
   
-  return(invisible(simple.Model))
-  
-  
-}
-

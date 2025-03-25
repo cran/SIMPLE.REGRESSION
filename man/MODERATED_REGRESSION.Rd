@@ -20,8 +20,8 @@
                      CI_level = 95,
                      MCMC = FALSE,
                      Nsamples = 10000,
-                     plot_type = 'residuals', plot_title = NULL, DV_range = NULL,
-                     Xaxis_label = NULL, Yaxis_label = NULL, legend_label = NULL,
+                     plot_type = 'residuals', plot_title=NULL, DV_range = NULL,
+                     Xaxis_label = NULL, Yaxis_label=NULL, legend_label=NULL,
                      JN_type = 'Huitema', 
                      verbose = TRUE )
 }
@@ -104,6 +104,7 @@
   	    
  \item{CI_level}{
   \code{}(optional) The confidence interval for the output, in whole numbers.
+  CI_level is also used in the Johnson-Neyman regions of significance computations.
   The default is 95.}
 
  \item{MCMC}{

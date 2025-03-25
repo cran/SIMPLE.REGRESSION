@@ -94,7 +94,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   }
   
   
-  message('\n\n\nBlock 0: Beginning Block')
+  if (verbose)  message('\n\n\nBlock 0: Beginning Block')
   
   # NULL model
   if (is.null(offset))
@@ -222,11 +222,14 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     modelMAINsum <- summary(modelMAIN, correlation=TRUE)
     
-    # exponentiated coefficients
+    # exponentiated coefficients, & adding them to modelMAINsum$coefs
     
     if (family == 'poisson' | family == 'quasipoisson' | family == 'negbin') {
       exp_B <- exp(modelMAIN$coefficients)
       exp_B_CIs <- exp(confint.default(modelMAIN))
+
+      modelMAINsum$coefficients <- cbind(modelMAINsum$coefficients, exp_B, exp_B_CIs)
+      colnames(modelMAINsum$coefficients) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
     }
     
     if (family == 'zinfl_poisson' | family == 'zinfl_negbin') {
@@ -243,7 +246,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       colnames(modelMAINsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
      
       modelMAINsum$coefs$zero <- 
-        cbind(modelMAINsum$coefficients$zero, exp_B_count, exp_B_CIs[grepl("zero", rownames(exp_B_CIs)),])
+        cbind(modelMAINsum$coefficients$zero, exp_B_zero, exp_B_CIs[grepl("zero", rownames(exp_B_CIs)),])
       colnames(modelMAINsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
     }
     
@@ -529,7 +532,8 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
   modeldata$predicted <- modelMAIN$fitted.values
   
-  modelcoefs = modelMAINsum$coefs
+  # modelcoefs <- modelMAINsum$coefs
+  modelcoefs <- modelMAINsum$coefficients
   
     
   # variable correlations - using model data with dummy coded factor variables (all numeric)

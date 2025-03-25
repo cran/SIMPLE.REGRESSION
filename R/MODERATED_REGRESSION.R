@@ -460,11 +460,11 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   tslopes <- slopes / SEslopes
   N <- nrow(donnes)
   df <- modelXN$df.residual
-  k <- length(coefs) - 1                    # number of predictors    # FIX?
+  k <- length(coefs) - 1     # number of predictors 
   dfs <-  N - k -1  
   pslopes <- (1 - pt(abs(tslopes),dfs)) * 2
   # CIs - 2003 Cohen Aiken West p 278
-  tabledT <- qt(.975, dfs)
+  tabledT <- qt(((100 - CI_level) / 2 * .01), dfs)   # tabledT <- qt(.975, dfs)  
   me <- tabledT * SEslopes
   confidLo <- slopes - me
   confidHi <- slopes + me
@@ -483,7 +483,7 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   # standardized slopes
   if (MOD_type == 'factor') {	
     grp_correls <- sapply(
-      split(data.frame(donnes[,DV], donnes[,IV]), donnes[,MOD]),     # FIX?
+      split(data.frame(donnes[,DV], donnes[,IV]), donnes[,MOD]),  
       function(x) cor(x[[1]],x[[2]]) )
     grp_DV_SDs <- tapply(donnes[,DV], donnes[,MOD], sd)
     grp_IV_SDs <- tapply(donnes[,IV], donnes[,MOD], sd)
@@ -555,10 +555,10 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     
     B <- modelXN$coefficients[c('(Intercept)',IV,MOD,PROD)]
     S <- stats::vcov(modelXN)[c('(Intercept)',IV,MOD,PROD), c('(Intercept)',IV,MOD,PROD)]
-    
-    tcrit <- qt(0.975, modelXN$df.residual)     
-    
-    # construct the quadratic equation
+
+    tcrit <- qt(((100 - CI_level) / 2 * .01), modelXN$df.residual)  # tcrit <- qt(0.975, modelXN$df.residual)
+
+        # construct the quadratic equation
     a <- tcrit^2 * S[PROD,PROD] - B[PROD]^2
     b <- 2 * (tcrit^2 * S[IV,PROD] - B[IV]*B[PROD])
     c <- tcrit^2 * S[IV,IV] - B[IV]^2
@@ -588,17 +588,23 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
         
         # slope & CI values at the ros points
         if (ros[1] >= MOD_min) {
-          rownum <- which(JN.data$MODvalues == ros[1]) # the row with the low ros MOD value info
-          message('\n   When ',MOD,' is ',round(ros[1],2),
+          # if ros[1] is > the largest JN.data$MODvalues, then use the largest
+          if (ros[1] > tail(JN.data$MODvalues, 1)) { rownum <- length(JN.data$MODvalues)
+          } else {rownum <- which(JN.data$MODvalues == ros[1])} # the row with the high ros MOD value info
+          message('\n   When ',MOD,' is ',round(JN.data$MODvalues[rownum],2),
                   ':   slope = ',round(JN.data$SimpleSlope[rownum],2),
-                  '  CI_lb = ',round(JN.data$CI.L[rownum],2),'  CI_ub = ',round(JN.data$CI.U[rownum],2),
+                  '  CI_lb = ',round(JN.data$CI.L[rownum],2),
+                  '  CI_ub = ',round(JN.data$CI.U[rownum],2),
                   '  SE = ',round(JN.data$StdError[rownum],2))
         }
         if (ros[2] <= MOD_max) {
-          rownum <- which(JN.data$MODvalues == ros[2]) # the row with the high ros MOD value info
-          message('\n   When ',MOD,' is ',round(ros[2],2),
+          # if ros[2] is < the smallest JN.data$MODvalues, then use the smallest
+          if (ros[2] < JN.data$MODvalues[1]) { rownum <- 1
+          } else {rownum <- which(JN.data$MODvalues == ros[2])} # the row with the high ros MOD value info
+          message('\n   When ',MOD,' is ',round(JN.data$MODvalues[rownum],2),
                   ':    slope = ',round(JN.data$SimpleSlope[rownum],2),
-                  '    CI_lb = ',round(JN.data$CI.L[rownum],2),'   CI_ub = ',round(JN.data$CI.U[rownum],2),
+                  '    CI_lb = ',round(JN.data$CI.L[rownum],2),
+                  '   CI_ub = ',round(JN.data$CI.U[rownum],2),
                   '    SE = ',round(JN.data$StdError[rownum],2))
         }
         message('\n   The ',IV,' values range from ',round(IV_min_JN,2),' to ',round(IV_max_JN,2), '\n\n')
@@ -623,7 +629,7 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     JNlohigrps <- c(NA,NA)
     compnoms <- NA
     # Xhi <- Xlo <- NA  # matrix(NA, choose(Ngroups,2), 2) 
-    alpha <- .05  # FIX
+    alpha <- ((100 - CI_level) / 2 * .01)  # .05
     
     MOD_grps <- levels(donnes[,MOD])
     
@@ -720,255 +726,284 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
         # lohi <- rbind(lohi, c(XL1, XL2))
         
         if ((B**2 - A*C) > 0) {
+          
           hi <- (-B + (sqrt(B**2 - A*C)) ) / A
           lo <- (-B - (sqrt(B**2 - A*C)) ) / A
           
-          if (hi > lo)  JNlohigrps <- rbind(JNlohigrps, c(lo, hi))
+          # if (hi > lo)  JNlohigrps <- rbind(JNlohigrps, c(lo, hi))
           
           # if (hi > lo)  Xhi <- rbind(Xhi, hi)
           # if (lo < hi)  Xlo <- rbind(Xlo, lo)
-        } else {
-          JNlohigrps <- rbind(JNlohigrps, c(NA,NA))
-        }	
-        
-        
-        compnoms <- rbind(compnoms,  paste('Groups',lupe1,'&',lupe2, sep=' ') )
-      }
-    }
-    
-    JNlohigrps <- JNlohigrps[-1, ,drop = FALSE]
-    # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
-    # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
-    # JNlohigrps <- cbind(XL1, XL2)
-    colnames(JNlohigrps) <- c('Low Value', 'High Value')
-    rownames(JNlohigrps) <- compnoms[-1,]
-    
-    if (verbose) {
-      message('\n\nSimultaneous regions of significance -- Johnson-Neyman Technique:')
-      message('\nUsing Bonferroni F, p = .05, 2-tailed; see Huitema, 1980, p. 293')
-      message('The regression lines for group comparisons are significantly different')
-      message('at IDV scores < Low Value & > High Value:\n')
-      
-      print(round(JNlohigrps,3), print.gap = 4)
-      if (any(is.na(JNlohigrps))) message('NA indicates that meaningful values could not be computed.\n')	
-    }
-  }		
-  
-  
-  
-  
-  
-  ######################################    plot data    #######################################
-  
-  
-  plotdon <- NULL
-  
-  if (plot_type == 'interaction') {
-    
-    
-    # IV min & max values for plot -- categorical MOD
-    if (MOD_type == 'factor') {	
-      
-      Ngroups <- length(levels(donnes[,MOD]))
-      plotdon <- rep(-9999,Ngroups)
-      
-      # IV min & max values for plot -- dichotomous IV
-      if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
-        IV_min <- rep( (levels(donnes[,MOD])[1] = 0), Ngroups)
-        IV_max <- rep( (levels(donnes[,MOD])[2] = 1), Ngroups)
-      }
-      
-      # IV min & max values for plot -- numeric IV      
-      if (IV_type == 'numeric') {
-        IV_min <- IV_max <- NULL
-        for (lupeD in 1:Ngroups) {
           
-          dontemp <- subset(donnes, mod_values==levels(donnes[,MOD])[lupeD], select=IV)
-          
-          if (IV_range == 'quantiles' | IV_range == 'tumble') {   # using the 10th & 90th
-            IVquants <- quantile(dontemp, na.rm=T, probs=quantiles_IV)	
-            IV_min <- c(IV_min, IVquants[1])
-            IV_max <- c(IV_max, IVquants[2])
-          } else if (IV_range == 'minmax') {  
-            IV_min <- c(IV_min, min(dontemp))
-            IV_max <- c(IV_max, max(dontemp))
-          } else if (IV_range == 'AikenWest') { 
-            IVmn <- sapply(dontemp[IV], mean, na.rm = TRUE)
-            IVsd <- sapply(dontemp[IV], sd, na.rm = TRUE)
-            IV_min <- c(IV_min, (IVmn - IVsd))
-            IV_max <- c(IV_max, (IVmn + IVsd))
-          } else if (IV_range == 'numeric') {	
-            IV_min <- c(IV_min, IV_range_user[1])
-            IV_max <- c(IV_max, IV_range_user[2])
-          }			
-        }		
-      }
+          if (hi > lo) { JNlohigrps <- rbind(JNlohigrps, c(lo,hi))
+          } else { JNlohigrps <- rbind(JNlohigrps, c(NA,NA)) }
+        } else { JNlohigrps <- rbind(JNlohigrps, c(NA,NA)) }
       
-      # the dummy codes for MOD
-      MODdummys <- contrasts(donnes[,MOD])
-      
-      plotdon <- rbind( cbind(IV_min, MODdummys), cbind(IV_max, MODdummys) )
-      colnames(plotdon) <- c(IV, MODnew)
+      compnoms <- rbind(compnoms,  paste('Groups',lupe1,'&',lupe2, sep=' ') )
     }
-    
-    
-    
-    # IV min & max values for plot -- continuous MOD
-    if (MOD_type == 'numeric') {	
-      
-      # IV min & max values for plot -- dichotomous IV
-      if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
-        IV_min <- levels(donnes[,MOD])[1] = 0
-        IV_max <- levels(donnes[,MOD])[2] = 1
-      }
-      
-      # IV min & max values for plot -- numeric IV
-      if (IV_type == 'numeric') {
-        
-        plotdon <- rep(-9999,2)
-        if (IV_range == 'tumble') { # | 
-          # Bodner 2016 p 598 tumble graph method for IV ranges
-          # Use Equation 3 to predict the conditional mean values of the target predictor 
-          # X for each of the moderator variable values chosen in Step 1. The square root 
-          # of the mean square residual from the analysis of variance summary table for 
-          # this model is an estimate of the SD of the residuals around the predicted values; 
-          # this value is added and subtracted from each predicted target variable value 
-          # resulting in two values of the target variable X for each chosen moderator variable value. 
-          formB <- as.formula(paste(IV, MOD, sep=" ~ "))	
-          eq3 <- lm(formB, donnes)
-          sumtab <- summary(eq3)
-          sqrmsr <- sumtab$sigma	
-          for (lupe in 1:length(mod_values)) {
-            predval <- sumtab$coeff[1,1] + sumtab$coeff[2,1] * mod_values[lupe]
-            IV_min <- predval - sqrmsr
-            plotdon <- rbind( plotdon, c(IV_min, mod_values[lupe]))
-            IV_max <- predval + sqrmsr
-            plotdon <- rbind( plotdon, c(IV_max, mod_values[lupe]))		
-          }
-          plotdon <- plotdon[-1,]		
-        } else if (IV_range == 'quantiles') { # using the 10th & 90th
-          IVquants <- quantile(donnes[IV], na.rm=T, probs=quantiles_IV)	
-          IV_min <- IVquants[1]
-          IV_max <- IVquants[2]
-        } else if (IV_range == 'minmax') { 
-          IV_min <- min(donnes[IV])
-          IV_max <- max(donnes[IV])
-        } else if (IV_range == 'AikenWest') { 
-          IVmn <- sapply(donnes[IV], mean, na.rm = TRUE)
-          IVsd <- sapply(donnes[IV], sd, na.rm = TRUE)
-          IV_min <- IVmn - IVsd
-          IV_max <- IVmn + IVsd
-        } else if (IV_range == 'numeric') {	
-          IV_min <- IV_range_user[1]
-          IV_max <- IV_range_user[2]
-        }
-        
-        if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), mod_values)
-        
-        colnames(plotdon) <- c(IV, MODnew)
-      }
-    }
-    
-    
-    
-    # add COVARS data to plotdon for the predict function -- using the means of each
-    if (!is.null(COVARS)) {
-      # COVARSmn <- sapply(donnes[COVARS], mean, na.rm = TRUE)
-      
-      COVARSmn <- matrix(sapply(donnes[COVARS], mean, na.rm = TRUE), nrow=1)
-      
-      COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=nrow(plotdon), ncol=4, byrow=TRUE)
-      plotdon <- cbind(plotdon, COVARSmn)
-      colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
-      
-      # plotdon <- cbind(plotdon, rep(COVARSmn,nrow(plotdon)))
-      # colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
-    }
-    
-    plotdon <- data.frame(plotdon)
-    predvals <- predict(modelXN, type='response', plotdon)
-    # removing COVARS from plotdon because not needed for plot
-    plotdon <- subset(plotdon, select=c(IV,MODnew))
-    # adding the predicted DV values
-    plotdon$predDV <- predvals
-    colnames(plotdon)[colnames(plotdon) == 'predDV'] <- DV
-    
-    if (MOD_type == 'factor') { 
-      plotdon <- plotdon[,c(IV,DV)]
-      plotdon[,MOD] <- rep(mod_values,2) 
-    }
-    
-    
-    # set the range for the x and y axis 
-    xrange <- range(plotdon[IV]) 
-    
-    yrange <- range(plotdon[DV])
-    if (!is.null(DV_range))  yrange <- DV_range 
-    
-    
-    # set up the plot 
-    
-    if (is.null(Xaxis_label))   Xaxis_label <- IV
-    
-    if (is.null(Yaxis_label))   Yaxis_label <- DV
-    
-    if (is.null(plot_title))    plot_title <- 'Interaction Plot'
-    
-    if (is.null(legend_label))  legend_label <- MOD
-    
-    
-    plot(xrange, yrange, type="n", xlab=Xaxis_label, ylab=Yaxis_label, cex.lab=1.3, main=plot_title ) 
-    
-    for (i in 1:length(mod_values)) {
-      dum <- subset(plotdon, plotdon[,MOD]==mod_values[i], select = c(IV,DV))
-      lines(dum, type="b", lwd=1.5, lty=1, col=i, pch=19); #points(dum)
-    }
-    
-    if (MOD_type == 'numeric') {legvalues <- round(mod_values,2)} else {legvalues <- mod_values}
-    legend("topleft", legend=legvalues, title=legend_label, col=1:length(mod_values), 
-           bty="n", lty=1, lwd=2) # ,inset = c(.60,.03)
-    
-  } # end of  if (plot_type == 'interaction') 
-  
-  
-  
-  output <- list(modelMAINsum=modelMAINsum, mainRcoefs=mainRcoefs, 
-                 modeldata=modeldata, collin_diags=collin_diags,
-                 modelXN=modelXN, modelXNsum=modelXNsum, 
-                 RsqchXn=RsqchXn, fsquaredXN=fsquaredXN, xnRcoefs=xnRcoefs, 
-                 simslop=simslop, simslopZ=simslopZ, 
-                 plotdon=plotdon, JN.data = JN.data, ros=ros, DV=DV, IV=IV, MOD=MOD, family='OLS')
-  class(output) <- "MODERATED_REGRESSION"
-  
-  
-  
-  # plot of Johnson-Neyman regions of significance
-  if (plot_type == 'regions') {
-    
-    if (is.null(Xaxis_label))   Xaxis_label <- MOD
-    
-    if (is.null(Yaxis_label))   Yaxis_label <- c(paste("Simple Slopes of",IV,'on',DV))
-    
-    if (is.null(plot_title))    plot_title <- c("Simple Slopes of",IV,'on',paste(DV,' by ',MOD,sep=""))
-    
-    if (is.null(legend_label))  legend_label <- 'Simple Slope'
-    
-    REGIONS_OF_SIGNIFICANCE(model=output,  
-                            IV_range=IV_range, MOD_range=MOD_range, 
-                            plot_title=plot_title, Yaxis_label=Yaxis_label, 
-                            Xaxis_label=Xaxis_label, legend_label=legend_label,
-                            names_IV_MOD=NULL) 
   }
   
-  if (plot_type == 'residuals') 
-    diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(16,2,3,4))
+  JNlohigrps <- JNlohigrps[-1, ,drop = FALSE]
+  # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
+  # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
+  # JNlohigrps <- cbind(XL1, XL2)
+  colnames(JNlohigrps) <- c('Low Value', 'High Value')
+  rownames(JNlohigrps) <- compnoms[-1,]
   
-  if (plot_type == 'diagnostics') 
-    diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(9,12,13,14))
+  
+  # compute A=((2*tabledF*-1)/(N-4)) * ssresd * ((1/ssreg1)+(1/ssreg2)) + (bb**2).
+  # compute B=(2*tabledF/(N-4))*ssresd*((mn1(1,1)/ssreg1)+(mn2(1,1)/ssreg2))+(aa*bb).
+  # compute C=((2*tabledF*-1)/(N-4)) * ssresd * ( (N/(n1*n2))+
+  #                                                 ((mn1(1,1)**2)/ssreg1)+((mn2(1,1)**2)/ssreg2) ) + (aa**2).
+  # compute Xlo = -9999.
+  # compute Xhi = -9999.
+  # do if ( (B**2 - A*C) gt 0).
+  # compute hi = (-B + (sqrt(B**2 - A*C)) ) / A.
+  # compute lo = (-B - (sqrt(B**2 - A*C)) ) / A.
+  # do if (hi > lo).
+  # compute Xhi = hi.
+  # end if.
+  # do if (lo < hi).
+  # compute Xlo = lo.
+  # end if.
+  # end if.
+  # 
+  # print /title=
+  #   "Simultaneous Regions of Significance -- Johnson-Neyman Technique:" / space=2.
+  # print /title=
+  #   "The regression lines for group comparisons are significantly different".
+  # print {xlo, xhi}  /format="f12.3" 
+  # /title="at IDV scores < Lo Value & > Hi Value:"
+  # /clabels="Lo Value" "Hi Value".
+  # print /title="-9999 indicates that meaningful values could not be computed.".
+  # 
+  
+  if (verbose) {
+    message('\n\nSimultaneous regions of significance -- Johnson-Neyman Technique:')
+    message('\nUsing Bonferroni F, p = .05, 2-tailed; see Huitema, 1980, p. 293')
+    message('The regression lines for group comparisons are significantly different')
+    message('at IDV scores < Low Value & > High Value:\n')
+    
+    print(round(JNlohigrps,3), print.gap = 4)
+    if (any(is.na(JNlohigrps))) message('\n    NA indicates that meaningful values could not be computed.\n')	
+  }
+}		
+
+
+
+
+
+######################################    plot data    #######################################
+
+
+plotdon <- NULL
+
+if (plot_type == 'interaction') {
   
   
-  return(invisible(output))
+  # IV min & max values for plot -- categorical MOD
+  if (MOD_type == 'factor') {	
+    
+    Ngroups <- length(levels(donnes[,MOD]))
+    plotdon <- rep(-9999,Ngroups)
+    
+    # IV min & max values for plot -- dichotomous IV
+    if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
+      IV_min <- rep( (levels(donnes[,MOD])[1] = 0), Ngroups)
+      IV_max <- rep( (levels(donnes[,MOD])[2] = 1), Ngroups)
+    }
+    
+    # IV min & max values for plot -- numeric IV      
+    if (IV_type == 'numeric') {
+      IV_min <- IV_max <- NULL
+      for (lupeD in 1:Ngroups) {
+        
+        dontemp <- subset(donnes, mod_values==levels(donnes[,MOD])[lupeD], select=IV)
+        
+        if (IV_range == 'quantiles' | IV_range == 'tumble') {   # using the 10th & 90th
+          IVquants <- quantile(dontemp, na.rm=T, probs=quantiles_IV)	
+          IV_min <- c(IV_min, IVquants[1])
+          IV_max <- c(IV_max, IVquants[2])
+        } else if (IV_range == 'minmax') {  
+          IV_min <- c(IV_min, min(dontemp))
+          IV_max <- c(IV_max, max(dontemp))
+        } else if (IV_range == 'AikenWest') { 
+          IVmn <- sapply(dontemp[IV], mean, na.rm = TRUE)
+          IVsd <- sapply(dontemp[IV], sd, na.rm = TRUE)
+          IV_min <- c(IV_min, (IVmn - IVsd))
+          IV_max <- c(IV_max, (IVmn + IVsd))
+        } else if (IV_range == 'numeric') {	
+          IV_min <- c(IV_min, IV_range_user[1])
+          IV_max <- c(IV_max, IV_range_user[2])
+        }			
+      }		
+    }
+    
+    # the dummy codes for MOD
+    MODdummys <- contrasts(donnes[,MOD])
+    
+    plotdon <- rbind( cbind(IV_min, MODdummys), cbind(IV_max, MODdummys) )
+    colnames(plotdon) <- c(IV, MODnew)
+  }
   
+  
+  
+  # IV min & max values for plot -- continuous MOD
+  if (MOD_type == 'numeric') {	
+    
+    # IV min & max values for plot -- dichotomous IV
+    if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
+      IV_min <- levels(donnes[,MOD])[1] = 0
+      IV_max <- levels(donnes[,MOD])[2] = 1
+    }
+    
+    # IV min & max values for plot -- numeric IV
+    if (IV_type == 'numeric') {
+      
+      plotdon <- rep(-9999,2)
+      if (IV_range == 'tumble') { # | 
+        # Bodner 2016 p 598 tumble graph method for IV ranges
+        # Use Equation 3 to predict the conditional mean values of the target predictor 
+        # X for each of the moderator variable values chosen in Step 1. The square root 
+        # of the mean square residual from the analysis of variance summary table for 
+        # this model is an estimate of the SD of the residuals around the predicted values; 
+        # this value is added and subtracted from each predicted target variable value 
+        # resulting in two values of the target variable X for each chosen moderator variable value. 
+        formB <- as.formula(paste(IV, MOD, sep=" ~ "))	
+        eq3 <- lm(formB, donnes)
+        sumtab <- summary(eq3)
+        sqrmsr <- sumtab$sigma	
+        for (lupe in 1:length(mod_values)) {
+          predval <- sumtab$coeff[1,1] + sumtab$coeff[2,1] * mod_values[lupe]
+          IV_min <- predval - sqrmsr
+          plotdon <- rbind( plotdon, c(IV_min, mod_values[lupe]))
+          IV_max <- predval + sqrmsr
+          plotdon <- rbind( plotdon, c(IV_max, mod_values[lupe]))		
+        }
+        plotdon <- plotdon[-1,]		
+      } else if (IV_range == 'quantiles') { # using the 10th & 90th
+        IVquants <- quantile(donnes[IV], na.rm=T, probs=quantiles_IV)	
+        IV_min <- IVquants[1]
+        IV_max <- IVquants[2]
+      } else if (IV_range == 'minmax') { 
+        IV_min <- min(donnes[IV])
+        IV_max <- max(donnes[IV])
+      } else if (IV_range == 'AikenWest') { 
+        IVmn <- sapply(donnes[IV], mean, na.rm = TRUE)
+        IVsd <- sapply(donnes[IV], sd, na.rm = TRUE)
+        IV_min <- IVmn - IVsd
+        IV_max <- IVmn + IVsd
+      } else if (IV_range == 'numeric') {	
+        IV_min <- IV_range_user[1]
+        IV_max <- IV_range_user[2]
+      }
+      
+      if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), mod_values)
+      
+      colnames(plotdon) <- c(IV, MODnew)
+    }
+  }
+  
+  
+  
+  # add COVARS data to plotdon for the predict function -- using the means of each
+  if (!is.null(COVARS)) {
+    # COVARSmn <- sapply(donnes[COVARS], mean, na.rm = TRUE)
+    
+    COVARSmn <- matrix(sapply(donnes[COVARS], mean, na.rm = TRUE), nrow=1)
+    
+    COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=nrow(plotdon), ncol=4, byrow=TRUE)
+    plotdon <- cbind(plotdon, COVARSmn)
+    colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
+    
+    # plotdon <- cbind(plotdon, rep(COVARSmn,nrow(plotdon)))
+    # colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
+  }
+  
+  plotdon <- data.frame(plotdon)
+  predvals <- predict(modelXN, type='response', plotdon)
+  # removing COVARS from plotdon because not needed for plot
+  plotdon <- subset(plotdon, select=c(IV,MODnew))
+  # adding the predicted DV values
+  plotdon$predDV <- predvals
+  colnames(plotdon)[colnames(plotdon) == 'predDV'] <- DV
+  
+  if (MOD_type == 'factor') { 
+    plotdon <- plotdon[,c(IV,DV)]
+    plotdon[,MOD] <- rep(mod_values,2) 
+  }
+  
+  
+  # set the range for the x and y axis 
+  xrange <- range(plotdon[IV]) 
+  
+  yrange <- range(plotdon[DV])
+  if (!is.null(DV_range))  yrange <- DV_range 
+  
+  
+  # set up the plot 
+  
+  if (is.null(Xaxis_label))   Xaxis_label <- IV
+  
+  if (is.null(Yaxis_label))   Yaxis_label <- DV
+  
+  if (is.null(plot_title))    plot_title <- 'Interaction Plot'
+  
+  if (is.null(legend_label))  legend_label <- MOD
+  
+  
+  plot(xrange, yrange, type="n", xlab=Xaxis_label, ylab=Yaxis_label, cex.lab=1.3, main=plot_title ) 
+  
+  for (i in 1:length(mod_values)) {
+    dum <- subset(plotdon, plotdon[,MOD]==mod_values[i], select = c(IV,DV))
+    lines(dum, type="b", lwd=1.5, lty=1, col=i, pch=19); #points(dum)
+  }
+  
+  if (MOD_type == 'numeric') {legvalues <- round(mod_values,2)} else {legvalues <- mod_values}
+  legend("topleft", legend=legvalues, title=legend_label, col=1:length(mod_values), 
+         bty="n", lty=1, lwd=2) # ,inset = c(.60,.03)
+  
+} # end of  if (plot_type == 'interaction') 
+
+
+
+output <- list(modelMAINsum=modelMAINsum, mainRcoefs=mainRcoefs, 
+               modeldata=modeldata, collin_diags=collin_diags,
+               modelXN=modelXN, modelXNsum=modelXNsum, 
+               RsqchXn=RsqchXn, fsquaredXN=fsquaredXN, xnRcoefs=xnRcoefs, 
+               simslop=simslop, simslopZ=simslopZ, 
+               plotdon=plotdon, JN.data = JN.data, ros=ros, DV=DV, IV=IV, MOD=MOD, family='OLS')
+class(output) <- "MODERATED_REGRESSION"
+
+
+
+# plot of Johnson-Neyman regions of significance
+if (plot_type == 'regions') {
+  
+  if (is.null(Xaxis_label))   Xaxis_label <- MOD
+  
+  if (is.null(Yaxis_label))   Yaxis_label <- c(paste("Simple Slopes of",IV,'on',DV))
+  
+  if (is.null(plot_title))    plot_title <- c("Simple Slopes of",IV,'on',paste(DV,' by ',MOD,sep=""))
+  
+  if (is.null(legend_label))  legend_label <- 'Simple Slope'
+  
+  REGIONS_OF_SIGNIFICANCE(model=output,  
+                          IV_range=IV_range, MOD_range=MOD_range, 
+                          plot_title=plot_title, Yaxis_label=Yaxis_label, 
+                          Xaxis_label=Xaxis_label, legend_label=legend_label,
+                          names_IV_MOD=NULL) 
+}
+
+if (plot_type == 'residuals') 
+  diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(16,2,3,4))
+
+if (plot_type == 'diagnostics') 
+  diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(9,12,13,14))
+
+
+return(invisible(output))
+
 }
 
 

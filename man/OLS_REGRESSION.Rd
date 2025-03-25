@@ -80,9 +80,7 @@
   Good sources for interpreting residuals and diagnostics plots:
 	\itemize{
   \item{\href{https://library.virginia.edu/data/articles/diagnostic-plots}{library.virginia.edu}}
-  \item{\href{https://www.andrew.cmu.edu/user/achoulde/94842/homework/regression_diagnostics.html}{andrew.cmu.edu}}
   \item{\href{ https://www.sthda.com/english/articles/index.php?url=/39-regression-model-diagnostics/161-linear-regression-assumptions-and-diagnostics-in-r-essentials/}{sthda.com}}
-  \item{\href{https://boostedml.com/2019/03/linear-regression-plots-fitted-vs-residuals.html}{boostedml.com}}
   }
 }
 \value{An object of class "OLS_REGRESSION". The object is a list containing the

@@ -12,6 +12,8 @@ LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
            xlim=NULL, xlab=NULL,
            ylim=NULL, ylab=NULL,
            title = NULL,
+           plot_save = FALSE, plot_save_type = 'png',
+           cols_user = NULL,
            verbose=TRUE)
 }
 \arguments{
@@ -88,6 +90,20 @@ LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
   \item{title}{
   \code{}(optional) A title for the plot. 
   \cr Example: title = 'OLS prediction of DV'}
+
+  \item{plot_save}{
+  \code{}Should a plot be saved to disk? TRUE or FALSE (the default).}
+
+  \item{plot_save_type}{
+  \code{}The output format if plot_save = TRUE. The options are 'bitmap', 'tiff', 
+         'png' (the default), 'jpeg', and 'bmp'.}
+
+  \item{cols_user}{
+  \code{}A vector of colours for the levels of IV_focal_1 or IV_focal_2. 
+  \cr If NULL, the default colours are selected, in order, from this vector: 
+   cols_user <- c("mediumvioletred", 'black', "blue", 'cyan2', "red", 'limegreen', "yellow", 'blueviolet').
+   If there are more than 7 levels of levels of IV_focal_1 or IV_focal_2, 
+   then "rainbow" is used to determine the colours.}
 
   \item{verbose}{
   \code{}Should detailed results be displayed in console? \cr The options are: 
