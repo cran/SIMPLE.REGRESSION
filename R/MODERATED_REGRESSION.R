@@ -134,8 +134,17 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
   colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
   
-  mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
-                              modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+  # mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata),
+  #                             modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+  
+  mainRcoefs <- 
+    PARTIAL_COR(data=cor(modeldata), Y=DV, X=colnames(modeldata)[-1], 
+                Ncases=nrow(donnes), verbose=FALSE)
+  
+  mainRcoefs <- cbind(mainRcoefs$betas, mainRcoefs$Rx_y, 
+                      mainRcoefs$R_partials, mainRcoefs$R_semipartials)
+  colnames(mainRcoefs) <- c('beta','r','partial.r','semipartial.r')
+  
   
   if (MCMC) {
     
@@ -292,8 +301,17 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   RsqchXn <- RsqXN - RsqMAIN	
   fsquaredXN <- (RsqXN - RsqMAIN) / (1 - RsqXN)	
   
-  xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), 
-                            modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
+  # xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), 
+  #                           modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
+  
+  xnRcoefs <- 
+    PARTIAL_COR(data=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), Y=DV, 
+                X=c(IV,MODnew,COVARS,PROD), Ncases=nrow(don5), verbose=FALSE)
+  
+  xnRcoefs <- cbind(xnRcoefs$betas, xnRcoefs$Rx_y, 
+                    xnRcoefs$R_partials, xnRcoefs$R_semipartials)
+  colnames(xnRcoefs) <- c('beta','r','partial.r','semipartial.r')
+  
   
   if (MCMC) {
     

@@ -1,5 +1,6 @@
-export(OLS_REGRESSION, SIMPLE.REGRESSION, REGIONS_OF_SIGNIFICANCE, PARTIAL_COEFS, 
-       MODERATED_REGRESSION, LOGISTIC_REGRESSION, COUNT_REGRESSION, PLOT_MODEL)
+export(OLS_REGRESSION, SIMPLE.REGRESSION, REGIONS_OF_SIGNIFICANCE, PARTIAL_COR, 
+       MODERATED_REGRESSION, LOGISTIC_REGRESSION, COUNT_REGRESSION, PLOT_MODEL,
+       SET_CORRELATION)
 
 importFrom("nlme", lme, getData, fixef)
 
@@ -10,7 +11,7 @@ importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova,
              resid, rstandard, rstudent,
              binomial, coef, confint.default,
              delete.response, fitted, glm, logLik, pchisq,
-             poisson, relevel, residuals, var,
+             poisson, relevel, residuals, var, cov2cor,
              density, pbinom, runif, loess.smooth, pbeta, ppois, formula)
 
 importFrom("graphics", lines, par, points, layout, layout.show,
@@ -27,4 +28,4 @@ importFrom(BayesFactor, ttest.tstat, anovaBF, extractBF, ttestBF, posterior,
 
 importFrom(rstanarm, posterior_interval, stan_glm, neg_binomial_2)
 
-importFrom(pscl, zeroinfl, vuong)
+importFrom(pscl, zeroinfl, vuong, hurdle)

@@ -101,8 +101,16 @@ OLS_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
     colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
     
-    mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
-                                modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+    # mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
+    #                             modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+    
+    mainRcoefs <- 
+      PARTIAL_COR(data=cor(modeldata), Y=DV, X=forced, Ncases=nrow(donnes), verbose=FALSE)
+    
+    mainRcoefs <- cbind(mainRcoefs$betas, mainRcoefs$Rx_y, 
+                        mainRcoefs$R_partials, mainRcoefs$R_semipartials)
+    colnames(mainRcoefs) <- c('beta','r','partial.r','semipartial.r')
+    
     
     modeldata$predicted <- modelMAIN$fitted.values
     
@@ -224,9 +232,16 @@ OLS_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
     }
     
+    
+    # add, if any, factor variables in data to modeldata 
+    # (because lm changes names & types and the original variables are needed for PLOTMODEL)
+    factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
+    if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
+    
     output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum, 
                    anova_table=anova_table, mainRcoefs=mainRcoefs, 
                    modeldata=modeldata, collin_diags=collin_diags, family='OLS')
+    
     class(output) <- "OLS_REGRESSION"
     
   }
@@ -273,12 +288,19 @@ OLS_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       
       # creating a new version of the raw data, from the lm output, 
       # so that can provide stats for dummy codes
-      # modeldata is needed for moderation analyses (next)
       modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
       colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
       
-      mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
-                                  modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+      # mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata), 
+      #                             modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
+      
+      mainRcoefs <- 
+        PARTIAL_COR(data=cor(modeldata), Y=DV, X=preds, Ncases=nrow(donnesH), verbose=FALSE)
+      
+      mainRcoefs <- cbind(mainRcoefs$betas, mainRcoefs$Rx_y, 
+                          mainRcoefs$R_partials, mainRcoefs$R_semipartials)
+      colnames(mainRcoefs) <- c('beta','r','partial.r','semipartial.r')
+      
       
       if (MCMC) {
         
@@ -424,9 +446,17 @@ OLS_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
     }
     
+    
+    # add, if any, factor variables in data to modeldata 
+    # (because lm changes names & types and the original variables are needed for PLOTMODEL)
+    factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
+    if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
+    
+    
     output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum, 
                    anova_table=anova_table, mainRcoefs=mainRcoefs, modeldata=modeldata, 
                    collin_diags=collin_diags, family='OLS')
+    
     class(output) <- "OLS_REGRESSION"
     
   }

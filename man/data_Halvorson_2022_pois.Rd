@@ -17,17 +17,19 @@ head(data_Halvorson_2022_pois)
 # replicating Table 3, p 293
 pois_Halvorson <-
   COUNT_REGRESSION(data=data_Halvorson_2022_pois, DV='Neg_OH_conseqs', 
-          forced=c('Gender_factor','Positive_Urgency_new','Planning','Sensation_seeking'), 
-        plot_type = 'diagnostics')
+                   forced=c('Gender_factor','Positive_urgency','Planning',
+                            'Sensation_seeking'), 
+                   plot_type = 'diagnostics')
 
 # replicating Figure 4, p 294
 PLOT_MODEL(model = pois_Halvorson, 
-           IV_focal_1 = 'Positive_Urgency_new',   
+           IV_focal_1 = 'Positive_urgency',   
            IV_focal_2 = 'Gender_factor',
            bootstrap=FALSE, N_sims=1000, CI_level=95, 
            ylim = c(0, 20), 
            xlab = 'Positive Urgency',
            ylab = 'Expected Count of Alcohol Consequences', 
-         title = 'Expected Count of Alcohol Consequences by Positive Urgency and Gender') 
+           title = 'Expected Count of Alcohol Consequences 
+                    by Positive Urgency and Gender') 
 }
 }

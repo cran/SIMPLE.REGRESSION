@@ -130,7 +130,7 @@ OLS_REGRESSION(data=data_Green_Salkind_2014, DV='injury',
 
 PLOT_MODEL(model = ols_GS, 
            IV_focal_1 = 'gluts', IV_focal_1_values=NULL,
-           IV_focal_2='age', IV_focal_2_values=NULL, 
+           IV_focal_2 = 'age', IV_focal_2_values=NULL, 
            IVs_nonfocal_values = NULL,
            bootstrap=TRUE, N_sims=100, CI_level=95, 
            ylim=NULL, ylab=NULL, title=NULL,
@@ -146,12 +146,12 @@ MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden', MOD=
                      
 PLOT_MODEL(model = ols_LW, 
            IV_focal_1 = 'burden', IV_focal_1_values=NULL,
-           IV_focal_2='belong_thwarted', IV_focal_2_values=NULL, 
+           IV_focal_2 = 'belong_thwarted', IV_focal_2_values=NULL, 
            bootstrap=TRUE, N_sims=100, CI_level=95) 
                      
 logmod_Meyers <- 
-  LOGISTIC_REGRESSION(data= data_Meyers_2013, DV='graduated', 
-                      forced= c('sex','family_encouragement') ) 
+  LOGISTIC_REGRESSION(data = data_Meyers_2013, DV='graduated', 
+                      forced = c('sex','family_encouragement')) 
 
 PLOT_MODEL(model = logmod_Meyers, 
            IV_focal_1 = 'family_encouragement', IV_focal_1_values=NULL,
@@ -160,12 +160,12 @@ PLOT_MODEL(model = logmod_Meyers,
            
 pois_Krem <-
   COUNT_REGRESSION(data=data_Kremelburg_2011, DV='OVRJOYED', forced=NULL, 
-                   hierarchical= list( step1=c('AGE','SEX_factor'), 
+                   hierarchical= list( step1=c('AGE', 'SEX_factor'), 
                                        step2=c('EDUC','REALRINC','DEGREE')) )
 
 PLOT_MODEL(model = pois_Krem, 
            IV_focal_1 = 'AGE', 
-           IV_focal_2='DEGREE',
+           IV_focal_2 = 'DEGREE',
            IVs_nonfocal_values = list( EDUC = 5, SEX_factor = '2'),
            bootstrap=FALSE, N_sims=100, CI_level=95) 
            

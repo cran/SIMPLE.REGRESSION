@@ -17,7 +17,9 @@
     There are numerous options for model plots.
     \cr\cr The REGIONS_OF_SIGNIFICANCE function also provides
     Johnson-Neyman regions of significance and plots of interactions for both lm
-    and lme models (lme models are from the nlme package).
+    and lme models (lme models are from the nlme package). There is also a 
+    function for partial and semipartial correlations and a function for 
+    conducting Cohen's set correlation analyses.
 }
 
 \references{

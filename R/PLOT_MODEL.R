@@ -19,42 +19,113 @@ PLOT_MODEL <- function(model,
   # cols_user <- c("ivory", 'black', "blue", 'cyan2', "red", 'limegreen', "yellow", 'blueviolet')
   
   
-  # type of model 
-  if (inherits(model,"OLS_REGRESSION"))            model_type = 'OLS'
-  if (inherits(model,"MODERATED_REGRESSION"))      model_type = 'MODERATED'
-  if (inherits(model,"LOGISTIC_REGRESSION"))       model_type = 'LOGISTIC'
-  if (inherits(model,"COUNT_REGRESSION"))          model_type = 'COUNT'
-  
-  if (any(grepl( 'pscl::zeroinfl',  model$modelMAIN$call, fixed = TRUE)))  model_type = 'ZINFL'
-  
-  # if (any(class(model$modelMAIN) == 'lm'))                          model_type = 'OLS'
-  # if (any(grepl( 'binomial', model$modelMAIN$call, fixed = TRUE)))  model_type = 'logistic'
-  # if (any(grepl( 'poisson',  model$modelMAIN$call, fixed = TRUE)))  model_type = 'poisson'
+  # kind of model 
+  if (inherits(model,"OLS_REGRESSION"))            kind = 'OLS'
+  if (inherits(model,"MODERATED_REGRESSION"))      kind = 'MODERATED'
+  if (inherits(model,"LOGISTIC_REGRESSION"))       kind = 'LOGISTIC'
+  if (inherits(model,"COUNT_REGRESSION"))          kind = model$kind
   
   if (inherits(model,"MODERATED_REGRESSION"))   names(model)[5] <- 'modelMAIN'
-  
   
   # # yhatR$se.fit is not available for 'zinfl_poisson' & 'zinfl_negbin' models 
   # # so can't do regular CIs, must bootstrap
   # bootstrap_flag <- FALSE
   # if (!bootstrap & model_type == 'ZINFL')  bootstrap <- bootstrap_flag <- TRUE
   
+  modeldata <- model$modeldata
   
-  # DV name
-  if (model_type == 'ZINFL') {
-    DV <- names(attr(model$modelMAIN$terms$full, "dataClasses"))[1]
-  } else { DV <- colnames(model$modeldata)[1] }
   
-  # IV names
-  if (model_type == 'ZINFL') {
-    IVnames <- attr(model$modelMAIN$terms$full, "term.labels")
-  } else { IVnames <- attr(model$modelMAIN$terms, "term.labels") }
+  # if (kind != 'OLS' & kind != 'LOGISTIC')  modeldata <- model$modeldata
+  # 
+  # if (kind == 'OLS' | kind == 'LOGISTIC')  modeldata <- model$modeldata_ORIG
+  
+  # if (kind != 'ZINFL' & kind != 'HURDLE')  modeldata <- model$modelMAIN$data
+  
+  # if (kind == 'ZINFL' | kind == 'HURDLE')  modeldata <- model$modeldata
+  
+  DV <- names(modeldata)[1]
+  
+  IVnames <- names(modeldata)[-1]
+  
+  
+  
+  #   if (kind != 'ZINFL' & kind != 'HURDLE') {
+  #     
+  #     modeldata <- model$modelMAIN$data
+  #   
+  #     DV <- names(modeldata)[1]
+  #     
+  #     IVnames <- names(modeldata)[-1]
+  #   }
+  #   
+  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
+  #     
+  #     modeldata <- model$modeldata
+  #     
+  #     
+  #     
+  #     
+  #     
+  #   
+  #   # DV name
+  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
+  #     DV <- names(attr(model$modelMAIN$terms$full, "dataClasses"))[1]
+  #   } else { DV <- colnames(modeldata)[1] }
+  #   
+  #   
+  #   names(attr(model$modelMAIN$terms, "dataClasses"))
+  #   
+  #   head(model$modelMAIN$data)
+  #   
+  #   
+  #   
+  #   # IV names
+  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
+  #     IVnames <- attr(model$modelMAIN$terms$full, "term.labels")
+  #   } else { IVnames <- attr(model$modelMAIN$terms, "term.labels") }
+  # 
+  #     
+  #   # check if there is an offset variable & add it to IVnames
+  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
+  #     
+  #   # varnoms <- colnames(modeldata)
+  #   # 
+  #   # offset_any <- grepl( 'offset', varnoms, fixed = TRUE)
+  #   # 
+  #   # if (any(offset_any))  {
+  #   #   offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
+  #   #   # extract the real name of the offset variable
+  #   #   offset_nom <- varnoms[offset_pos]
+  #   #   IVnames <- c(IVnames, offset_nom)
+  #   # }
+  #   
+  #   
+  #   varnoms <- names(attr(model$modelMAIN$terms$full, "dataClasses"))
+  #   offset_any <- grepl( 'offset', varnoms, fixed = TRUE)
+  #   if (any(offset_any))  {
+  #     offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
+  #     # extract the real name of the offset variable
+  #     offset_nom <- varnoms[offset_pos]
+  #     offset_nom <- gsub("offset\\(", "", offset_nom)
+  #     offset_nom <- gsub("\\)", "", offset_nom)
+  #     IVnames <- c(IVnames, offset_nom)
+  #     
+  #     # sub the same name into modeldata
+  #     modeldata_noms <- names(modeldata)
+  #     offset_any <- grepl( 'offset', modeldata_noms, fixed = TRUE)
+  #     offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
+  #     colnames(modeldata)[offset_pos] <- offset_nom
+  #   }
+  # }
+  
+  
+  
   
   # remove interaction terms i.e., that contain :
   IVnames <- IVnames[!grepl(':', IVnames)]
   
   # are any of the predictors factors?
-  if (model_type == 'ZINFL') { 
+  if (kind == 'ZINFL' | kind == 'HURDLE') { 
     list_xlevels <- model$modelMAIN$levels
   } else { list_xlevels <- model$modelMAIN$xlevels }
   
@@ -88,10 +159,11 @@ PLOT_MODEL <- function(model,
   # if IV_focal_1 is numeric & IV_focal_1_values were not provided
   if (is.null(IV_focal_1_values)) {
     
-    IV_focal_1_range <- range(model$modeldata[IV_focal_1])
+    IV_focal_1_range <- range(modeldata[IV_focal_1])
     
     IV_focal_1_values <- seq(IV_focal_1_range[1], IV_focal_1_range[2], length.out = 100)
   }
+  
   
   
   # IV_focal_2_values
@@ -128,13 +200,14 @@ PLOT_MODEL <- function(model,
     # if IV_focal_2 is numeric & IV_focal_2_values were not provided -- have to use just a few values
     if (is.null(IV_focal_2_values)) {
       
-      IV_focal_2_mn <- mean(unlist(model$modeldata[IV_focal_2]))
+      IV_focal_2_mn <- mean(unlist(modeldata[IV_focal_2]))
       
-      IV_focal_2_sd <- sd(unlist(model$modeldata[IV_focal_2]))
+      IV_focal_2_sd <- sd(unlist(modeldata[IV_focal_2]))
       
       IV_focal_2_values <- c((IV_focal_2_mn - IV_focal_2_sd), IV_focal_2_mn, (IV_focal_2_mn + IV_focal_2_sd))
     }
   }
+  
   
   
   # non focal IV values
@@ -154,7 +227,7 @@ PLOT_MODEL <- function(model,
         
         IVs_nonfocal_values_list[[IVs_nonfocal[lupe]]] <- sort(list_xlevels[[IVs_nonfocal[lupe]]])[1]
         
-      } else { IVs_nonfocal_values_list[[IVs_nonfocal[lupe]]] <- mean(model$modeldata[,IVs_nonfocal[lupe]]) }
+      } else { IVs_nonfocal_values_list[[IVs_nonfocal[lupe]]] <- mean(modeldata[,IVs_nonfocal[lupe]]) }
       
     }
     
@@ -177,6 +250,7 @@ PLOT_MODEL <- function(model,
   colnames(IVs_nonfocal_values_df) <- NULL
   
   
+  
   # testdata for predict
   testdata <- IVs_nonfocal_values_list
   
@@ -192,9 +266,12 @@ PLOT_MODEL <- function(model,
   head(testdata)
   
   # getting the predicted values & CIs
-  testdata <- cbind(testdata, predict_boc(modelMAIN=model$modelMAIN, modeldata=model$modeldata,
-                                          newdata=testdata, CI_level = 95, bootstrap=bootstrap, 
-                                          model_type=model_type, family = model$family))
+  testdata <- cbind(testdata, predict_boc(modelMAIN=model$modelMAIN, modeldata=modeldata,
+                                          newdata=testdata, CI_level=CI_level, bootstrap=bootstrap, 
+                                          kind=kind, family=model$family))
+  
+  head(testdata)
+  
   
   # are CIs available?
   if (anyNA(testdata)) { CIs <- FALSE } else {CIs <- TRUE}
@@ -207,8 +284,8 @@ PLOT_MODEL <- function(model,
     
     plot_title = title
     
-    if (!model_type == 'ZINFL') {height=7; width=9}
-    if (model_type  == 'ZINFL') {height=9; width=7}
+    if (kind != 'ZINFL' & kind != 'HURDLE') {height=7; width=9}
+    if (kind  == 'ZINFL' | kind == 'HURDLE')  {height=9; width=7}
     
     if (is.null(plot_save_type))  plot_save_type = 'png'
     
@@ -227,13 +304,14 @@ PLOT_MODEL <- function(model,
     if (plot_save_type == 'bmp')
       bmp(paste("Figure - ",plot_title,".bmp",sep=""), height=height, width=width, units='in', res=1200, pointsize=12)
     
-    # if (!model_type == 'ZINFL')
+    # if (kind != 'ZINFL' & kind != 'HURDLE')
     #   par(mfrow=c(1,1), pty="m", mar=c(3,2,3,2) + 2.6)
   }
   
   
   
-  if  (!model_type == 'ZINFL') {
+  if (kind == 'OLS' | kind == 'MODERATED' | kind == 'LOGISTIC' | 
+      kind == 'POISSON' | kind == 'NEGBIN') {
     
     par(mfrow=c(1,1), pty="m", mar=c(3,2,3,2) + 2.6)
     
@@ -244,363 +322,129 @@ PLOT_MODEL <- function(model,
     
     head(testdata)
     
-    # if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
+    if (is.null(xlim) & is.numeric((testdata[,IV_focal_1])))  
+      xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
     
     if (is.null(xlab))  xlab <- IV_focal_1
     
     if (is.null(ylim)) {
       
-      if (model_type == 'OLS' | model_type == 'MODERATED')  
-        ylim <- c(min(testdata$ci_lb), max(testdata$ci_ub))
+      if (kind == 'OLS' | kind == 'MODERATED')  
+        # ylim <- c(min(testdata$ci_lb), max(testdata$ci_ub))
+        ylim <- range( pretty(testdata$ci_lb), pretty(testdata$ci_ub))
       
-      if (model_type == 'LOGISTIC')  ylim <- c(0, 1)
+      if (kind == 'LOGISTIC')  ylim <- c(0, 1)
       
-      if (model_type == 'COUNT')  {
+      if (kind == 'POISSON' | kind == 'NEGBIN')  {
         
-        if (CIs) {ylim <- c(0, max(testdata$ci_ub))
-        } else {ylim <- c(0, max(model$modeldata[DV]))} # max(testdata[,DV_predicted])
+        if (CIs) { ylim <- range(pretty(c(0, max(testdata$ci_ub))))   # c(0, max(testdata$ci_ub))
+        } else {   ylim <- range(pretty(c(0, max(modeldata[DV]))))   # c(0, max(modeldata[DV]))} 
+        }
       }
+      # if (kind != 'LOGISTIC')  ylim[2] <- ylim[2] + (ylim[2] * .05)
     }
     
     if (is.null(ylab)) {
       
-      if (model_type == 'OLS' | model_type == 'MODERATED')  ylab <- DV
+      if (kind == 'OLS' | kind == 'MODERATED')  ylab <- DV
       
-      if (model_type == 'LOGISTIC')  ylab <- paste("Probability of ", DV)
+      if (kind == 'LOGISTIC')  ylab <- paste("Probability of ", DV)
       
-      if (model_type == 'COUNT')     ylab <- DV
+      if (kind == 'POISSON' | kind == 'NEGBIN')     ylab <- DV
     }
     
     if (is.null(title)) {
       
-      if (model_type == 'OLS' | model_type == 'MODERATED') title <- paste('OLS regression prediction of', DV)
-      if (model_type == 'LOGISTIC')  title <- paste('Logistic regression prediction of', DV)
-      if (model_type == 'COUNT')     title <- paste('Count regression prediction of', DV)
+      if (kind == 'OLS' | kind == 'MODERATED') title <- paste('OLS regression prediction of', DV)
+      if (kind == 'LOGISTIC')  title <- paste('Logistic regression prediction of', DV)
+      if (kind == 'POISSON' | kind == 'NEGBIN') title <- paste('Count regression prediction of', DV)
     }  
     
-    
-    # if IV_focal_1 is NOT a factor
-    if (!IV_focal_1 %in% names(list_xlevels)) {
-      
-      if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
-      
-      if (is.null(IV_focal_2)) {
-        
-        plot(testdata[,DV_predicted] ~ testdata[,IV_focal_1], type = 'n', 
-             xlim = xlim, 
-             xlab = xlab,
-             ylim = ylim, 
-             ylab = ylab,
-             main = title)
-        
-        polygon(c(rev(testdata[,IV_focal_1]), testdata[,IV_focal_1]), 
-                c(rev(testdata$ci_ub), testdata$ci_lb), col = 'grey95', border = NA)
-        if (CIs) {
-          lines(testdata[,IV_focal_1], testdata$ci_ub, col = 'red', lwd = .4)  # lty = 'dashed',
-          lines(testdata[,IV_focal_1], testdata$ci_lb, col = 'red', lwd = .4)
-        }
-        lines(testdata[,IV_focal_1], testdata[,DV_predicted],  col = 'black', lwd = 1.3)
-        
-        grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
-      }
-      
-      if (!is.null(IV_focal_2)) { 
-        
-        # colours for the IV_focal_2_values
-        if (length(cols_user) >= length(IV_focal_2_values))  {
-          cols <- cols_user[1:length(IV_focal_2_values)]
-        } else {cols <- rainbow(length(IV_focal_2_values))}
-        
-        dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[1],]
-        
-        plot(dum[,DV_predicted] ~ dum[,IV_focal_1], type = 'l', 
-             xlim = xlim, 
-             xlab = xlab,
-             ylim = ylim, 
-             ylab = ylab,
-             main = title,
-             col = cols[1])
-        
-        for (lupe in 2:length(IV_focal_2_values)) {
-          
-          dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[lupe],]
-          
-          lines(dum[,IV_focal_1], dum[,DV_predicted], col = cols[lupe], lwd = 1.3)
-        }
-        
-        legvalues <- IV_focal_2_values
-        if (is.numeric(legvalues))  legvalues <- round(legvalues,3)
-        
-        legend("topleft", legend=legvalues, title=IV_focal_2, col=cols, # 1:length(IV_focal_2_values), 
-               bty="n", lty=1, lwd=2)
-        
-        grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
-      }
-    } 
-    
-    
-    # if IV_focal_1 is a factor
-    if (IV_focal_1 %in% names(list_xlevels)) {
-      
-      # colours for the IV_focal_1_values
-      if (length(cols_user) >= length(IV_focal_1_values))  {
-        cols <- cols_user[1:length(IV_focal_1_values)]
-      } else {cols <- rainbow(length(IV_focal_1_values))}
-      
-      if (is.null(ylim)) {
-        if (CIs) {ylim <- range( pretty(testdata$ci_lb), pretty(testdata$ci_ub))
-        } else {ylim <- range( pretty(testdata[,DV_predicted]), pretty(testdata[,DV_predicted]))}
-      }
-      
-      if (!model_type == 'LOGISTIC')  ylim[2] <- ylim[2] + (ylim[2] * .05)
-      
-      if (is.null(IV_focal_2)) {  
-        
-        plot_bar <- barplot(t(testdata[DV_predicted]), beside=TRUE, legend.text=FALSE, col=cols,
-                            yaxp = c(min(ylim), max(ylim), 4),
-                            ylim=ylim, #yaxt="n", 
-                            xpd=FALSE,
-                            xlab = IV_focal_1,
-                            ylab = ylab,
-                            main = title)
-        
-        if (CIs) {
-          arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
-                 lwd = 1.0, angle = 90, code = 3, length = 0.05)
-        }
-        
-        graphics::legend("top", legend = IV_focal_1_values, bty="n", lwd=4, col=cols, cex = .80)
-      }
-      
-      if (!is.null(IV_focal_2)) {  
-        
-        plotdon_DV  <- unlist(testdata[DV_predicted])
-        
-        plotdon_IV1 <- unlist(testdata[IV_focal_1])
-        
-        plotdon_IV2 <- unlist(testdata[IV_focal_2])
-        
-        # if IV_focal_2 is not a factor, round to make the ticks shorter
-        if (!IV_focal_2 %in% names(list_xlevels))  plotdon_IV2 <- round(plotdon_IV2,2)
-        
-        plot_bar <- barplot(plotdon_DV ~ plotdon_IV1 + plotdon_IV2, beside=TRUE,
-                            legend.text=FALSE, col=rep(cols, length(IV_focal_1_values)), 
-                            yaxp = c(min(ylim), max(ylim), 4),
-                            ylim=ylim, #yaxt="n", 
-                            xpd=FALSE,
-                            xlab = IV_focal_2,
-                            ylab = ylab,
-                            main = title)
-        
-        if (CIs) {
-          arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
-                 lwd = 1.0, angle = 90, code = 3, length = 0.05)
-        }
-        graphics::legend("top", legend = IV_focal_1_values, title = IV_focal_1, 
-                         bty="n", lwd=4, col=cols, cex = .80)
-      }
-    }
+    plotfun(testdata=testdata, list_xlevels=list_xlevels, DV_predicted=DV_predicted, 
+            CIs=CIs, kind=kind, cols_user=cols_user,
+            xlim=xlim, ylim=ylim, xlab=xlab, ylab=ylab, title=title, 
+            IV_focal_1=IV_focal_1, IV_focal_1_values=IV_focal_1_values, 
+            IV_focal_2=IV_focal_2, IV_focal_2_values=IV_focal_2_values)
   }
   
   
-  
-  if  (model_type == 'ZINFL') {
+  if (kind == 'ZINFL' | kind == 'HURDLE') {
     
-    par(mfrow = c(2, 1),  mar = c(5,6,4,12))#, xpd= NA )  # oma = c(0,4,0,4) )#, mar = c(2,2,1,1)).  , xpd=TRUE
+    # par(mfrow = c(2, 1),  mar = c(5,6,4,12))  #, xpd= NA )  # oma = c(0,4,0,4) )#, mar = c(2,2,1,1)).  , xpd=TRUE
+    # par(mfrow=c(1,1), pty="m", mar=c(3,2,3,2) + 2.6)
+    
+    par(mfrow = c(2, 1),  oma = c(0,4,0,6) )  #, mar = c(2,2,1,1))
+    
+    testdata_ORIG <- testdata
+    
+    
+    if (is.null(xlim) & !is.factor(testdata[,IV_focal_1]))  
+      xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
+    
+    if (is.factor(testdata[,IV_focal_1]))  xlim <- NULL
     
     if (is.null(xlab))  xlab <- IV_focal_1
     
-    testdata_ZINFL <- testdata
     
-    for (lupe12 in 1:2) {
-      
-      # zero data
-      if (lupe12 == 1) {
-        # remove the count data
-        testdata <- testdata_ZINFL[,!grepl("count", colnames(testdata_ZINFL))]
-        # remove "_zero" from column names
-        names(testdata) <- gsub(pattern = "_zero", replacement = "", x = names(testdata))
-        model_type = 'LOGISTIC'
-        ylim <- ylab <- title <- NULL
-      }
-      
-      # count data
-      if (lupe12 == 2) {
-        # remove the zero data
-        testdata <- testdata_ZINFL[,!grepl("zero", colnames(testdata_ZINFL))]
-        # remove "_count" from column names
-        names(testdata) = gsub(pattern = "_count", replacement = "", x = names(testdata))
-        model_type = 'COUNT'
-        ylim <- ylab <- title <- NULL
-      }
-      
-      # renaming yhat
-      found <- match(colnames(testdata), 'yhat', nomatch = 0)
-      DV_predicted <- paste(DV, '_predicted', sep='')
-      colnames(testdata)[colnames(testdata) %in% 'yhat'] <- DV_predicted
-      
-      head(testdata)
-      
-      
-      if (is.null(ylim)) {
-        
-        if (model_type == 'LOGISTIC')  ylim <- c(0,1)
-        
-        if (model_type == 'COUNT' | model_type == 'ZINFL')  {
-          
-          if (CIs) {ylim <- c(0, max(testdata$ci_ub))} else {ylim <- c(0, max(model$modeldata[DV]))} # max(testdata[,DV_predicted])
-        }
-      }
-      
-      if (is.null(ylab)) {
-        
-        if (model_type == 'LOGISTIC')  ylab <- paste("Probability of ", DV)
-        
-        if (model_type == 'COUNT' | model_type == 'ZINFL')   ylab <- DV
-      }
-      
-      if (is.null(title)) {
-        
-        if (model_type == 'LOGISTIC')  title <- paste('Logistic regression prediction of', DV)
-        
-        if (model_type == 'COUNT')     title <- paste('Count regression prediction of', DV)
-      }  
-      
-      
-      # if IV_focal_1 is NOT a factor
-      if (!IV_focal_1 %in% names(list_xlevels)) {
-        
-        if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
-        
-        if (is.null(IV_focal_2)) {
-          plot(testdata[,DV_predicted] ~ testdata[,IV_focal_1], type = 'n', 
-               xlim = xlim, 
-               xlab = xlab,
-               ylim = ylim, 
-               ylab = ylab,
-               main = title)
-          
-          if (CIs) {
-            polygon(c(rev(testdata[,IV_focal_1]), testdata[,IV_focal_1]), 
-                    c(rev(testdata$ci_ub), testdata$ci_lb), col = 'grey95', border = NA)
-            lines(testdata[,IV_focal_1], testdata$ci_ub, col = 'red', lwd = .4)  # lty = 'dashed',
-            lines(testdata[,IV_focal_1], testdata$ci_lb, col = 'red', lwd = .4)
-          }
-          lines(testdata[,IV_focal_1], testdata[,DV_predicted],  col = 'black', lwd = 1.3)
-          
-          grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
-        }
-        
-        
-        if (!is.null(IV_focal_2)) { 
-          
-          # colours for the IV_focal_2_values
-          if (length(cols_user) >= length(IV_focal_2_values))  {
-            cols <- cols_user[1:length(IV_focal_2_values)]
-          } else {cols <- rainbow(length(IV_focal_2_values))}
-          
-          dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[1],]
-          
-          plot(dum[,DV_predicted] ~ dum[,IV_focal_1], type = 'l', 
-               xlim = xlim, 
-               xlab = xlab,
-               ylim = ylim, 
-               ylab = ylab,
-               main = title,
-               col = cols[1])
-          
-          grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
-          
-          
-          for (lupe in 2:length(IV_focal_2_values)) {
-            
-            dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[lupe],]
-            
-            lines(dum[,IV_focal_1], dum[,DV_predicted], col = cols[lupe], lwd = 1.3)
-          }
-          
-          legvalues <- IV_focal_2_values
-          if (is.numeric(legvalues))  legvalues <- round(legvalues,3)
-          
-          legend("topright", legend=legvalues, title=IV_focal_2, col=cols, 
-                 bty="n", lty=1, lwd=2, inset=c(-.4, .2), xpd= NA) 
-          
-          grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
-        }
-        
-      } 
-      
-      
-      # if IV_focal_1 is a factor
-      if (IV_focal_1 %in% names(list_xlevels)) {
-        
-        # colours for the IV_focal_1_values
-        if (length(cols_user) >= length(IV_focal_1_values))  {
-          cols <- cols_user[1:length(IV_focal_1_values)]
-        } else {cols <- rainbow(length(IV_focal_1_values))}
-        
-        if (is.null(ylim)) {
-          if (CIs) {ylim <- range( pretty(testdata$ci_lb), pretty(testdata$ci_ub))
-          } else {ylim <- range( pretty(testdata$yhat), pretty(testdata$yhat))}
-        }
-        
-        if (!model_type == 'LOGISTIC')  ylim[2] <- ylim[2] + (ylim[2] * .05)
-        
-        if (is.null(IV_focal_2)) {  
-          
-          plot_bar <- barplot(t(testdata[DV_predicted]), beside=TRUE, legend.text=FALSE, col=cols,
-                              yaxp = c(min(ylim), max(ylim), 4),
-                              ylim=ylim, #yaxt="n", 
-                              xpd=FALSE,
-                              xlab = IV_focal_1,
-                              ylab = ylab,
-                              main = title)
-          
-          if (CIs) {
-            arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
-                   lwd = 1.0, angle = 90, code = 3, length = 0.05)
-          }
-          
-          graphics::legend("top", legend = IV_focal_1_values, bty="n", lwd=4, col=cols, cex = .80)
-        }
-        
-        if (!is.null(IV_focal_2)) { 
-          
-          plotdon_DV  <- unlist(testdata[DV_predicted])
-          
-          plotdon_IV1 <- unlist(testdata[IV_focal_1])
-          
-          plotdon_IV2 <- unlist(testdata[IV_focal_2])
-          
-          # if IV_focal_2 is not a factor, round to make the ticks shorter
-          if (!IV_focal_2 %in% names(list_xlevels))  plotdon_IV2 <- round(plotdon_IV2,2)
-          
-          plot_bar <- barplot(plotdon_DV ~ plotdon_IV1 + plotdon_IV2, beside=TRUE,
-                              legend.text=FALSE, col=rep(cols, length(IV_focal_1_values)), 
-                              yaxp = c(min(ylim), max(ylim), 4),
-                              ylim=ylim, #yaxt="n", 
-                              xpd=FALSE,
-                              xlab = IV_focal_2,
-                              ylab = ylab,
-                              main = title)
-          
-          if (CIs) {
-            arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
-                   lwd = 1.0, angle = 90, code = 3, length = 0.05)
-          }
-          
-          graphics::legend("top", legend = IV_focal_1_values, title = IV_focal_1, 
-                           bty="n", lwd=4, col=cols, cex = .80)
-        }
-      }
-    }
+    # zero data
+    # remove the count data
+    testdata <- testdata_ORIG[,!grepl("count", colnames(testdata_ORIG))]
+    # remove "_zero" from column names
+    names(testdata) <- gsub(pattern = "_zero", replacement = "", x = names(testdata))
     
-    testdata <- testdata_ZINFL
+    # reversing yhat for hurdle models, to make DV = the probability of crossing the hurdle
+    if (kind == 'HURDLE') testdata$yhat <- 1 - testdata$yhat
+    
+    # renaming yhat
+    found <- match(colnames(testdata), 'yhat', nomatch = 0)
+    DV_predicted <- paste(DV, '_predicted', sep='')
+    colnames(testdata)[colnames(testdata) %in% 'yhat'] <- DV_predicted
+    
+    ylim <- c(0, 1)
+    
+    ylab <- 'Probability'
+    
+    if (kind == 'ZINFL')  title <- paste(DV, ':\nProbability of excess zeroes', sep='')
+    # if (kind == 'HURDLE') title <- paste(DV, ':\nProbability of zero', sep='')
+    if (kind == 'HURDLE') title <- paste(DV, ':\nProb. of hurdle cross', sep='')
+    
+    
+    plotfun(testdata=testdata, list_xlevels=list_xlevels, DV_predicted=DV_predicted, 
+            CIs=CIs, kind=kind, cols_user=cols_user,
+            xlim=xlim, ylim=ylim, xlab=xlab, ylab=ylab, title=title, 
+            IV_focal_1=IV_focal_1, IV_focal_1_values=IV_focal_1_values, 
+            IV_focal_2=IV_focal_2, IV_focal_2_values=IV_focal_2_values)
+    
+    
+    # count data
+    # remove the zero data
+    testdata <- testdata_ORIG[,!grepl("zero", colnames(testdata_ORIG))]
+    # remove "_count" from column names
+    names(testdata) = gsub(pattern = "_count", replacement = "", x = names(testdata))
+    
+    # renaming yhat
+    found <- match(colnames(testdata), 'yhat', nomatch = 0)
+    DV_predicted <- paste(DV, '_predicted', sep='')
+    colnames(testdata)[colnames(testdata) %in% 'yhat'] <- DV_predicted
+    
+    if (CIs) { ylim <- c(0, max(testdata$ci_ub))
+    } else {   ylim <- c(0, max(modeldata[DV]))} 
+    
+    ylab <- DV
+    
+    title <- paste(DV, ':\nExpected counts', sep='')
+    
+    plotfun(testdata=testdata, list_xlevels=list_xlevels, DV_predicted=DV_predicted, 
+            CIs=CIs, kind=kind, cols_user=cols_user,
+            xlim=xlim, ylim=ylim, xlab=xlab, ylab=ylab, title=title, 
+            IV_focal_1=IV_focal_1, IV_focal_1_values=IV_focal_1_values, 
+            IV_focal_2=IV_focal_2, IV_focal_2_values=IV_focal_2_values)
+    
+    testdata <- testdata_ORIG
   }
   
   
   if (plot_save == TRUE)  dev.off()
-  
   
   
   if (verbose) {

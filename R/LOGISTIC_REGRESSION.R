@@ -68,7 +68,7 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   # convert DV to a factor, if it isn't already one
   
   # glm: A typical predictor has the form response ~ terms where response is 
-  #the (numeric) response vector and terms is a series of terms which specifies 
+  # the (numeric) response vector and terms is a series of terms which specifies 
   # a linear predictor for response. 
   # For binomial and quasibinomial families the response can also be specified as a 
   # factor (when the first level denotes failure and all others success) or as a 
@@ -99,10 +99,6 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     message('\nDV frequencies:')
     print(table(donnes[,DV]))
   }
-  
-  # specify the DV baseline category
-  # ref_category = 'did not graduate'
-  # ref_category = 'NO'
   
   if (!is.null(ref_category))  donnes[,DV] <- relevel(donnes[,DV], ref = ref_category)
   
@@ -358,6 +354,14 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
   }      
   
+  
+  # add, if any, factor variables in data to modeldata 
+  # (because lm changes names & types and the original variables are needed for PLOTMODEL)
+  # factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
+  factor_variables <- list_xlevels <- names(modelMAIN$xlevels)
+  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
+  
+
   output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum,
                  modeldata=modeldata, coefs = modelMAINsum$coefs,
                  collin_diags = collin_diags, family=family)

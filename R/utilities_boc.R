@@ -1,6 +1,216 @@
 
 
 
+# finds an empty space for locating the plot legend
+legend_loc <- function(x, y, xlim, ylim) {
+  
+  # x = c(0,1);  xf = cut(x, breaks=3)
+  # x = seq(0, 1, by=.05)
+  # xlim = c(0,1)
+  
+  x_thirds <- (abs(xlim[1] - xlim[2])) / 3
+ 
+  x_breaks <- c( xlim[1], (xlim[1] + x_thirds), (xlim[1] + (x_thirds * 2)), xlim[2] )
+  
+  xf <- cut(x, breaks = x_breaks, include.lowest = TRUE)
+
+  y_thirds <- (abs(ylim[1] - ylim[2])) / 3
+  
+  y_breaks <- c( ylim[1], (ylim[1] + y_thirds), (ylim[1] + (y_thirds * 2)), ylim[2] )
+  
+  yf <- cut(y, breaks = y_breaks, include.lowest = TRUE)
+  
+  tab <- table(yf, xf);  #print(tab)
+  
+  # rearrange to match the R positions
+  tab <- rbind(tab[3,], tab[2,], tab[1,])
+  
+  tabmin <- min(tab)
+  
+  if        (tab[1,3] == tabmin) { loc <- 'topright'
+  } else if (tab[1,1] == tabmin) { loc <- 'topleft'
+  } else if (tab[1,2] == tabmin) { loc <- 'top'
+  } else if (tab[3,3] == tabmin) { loc <- 'bottomright'
+  } else if (tab[3,1] == tabmin) { loc <- 'bottomleft'
+  } else if (tab[3,2] == tabmin) { loc <- 'bottom'
+  } else if (tab[2,3] == tabmin) { loc <- 'right'
+  } else if (tab[2,1] == tabmin) { loc <- 'left'
+  } else if (tab[2,2] == tabmin) { loc <- 'center'
+  }
+  
+  return(invisible(loc))
+}
+
+
+
+
+
+plotfun <- function(testdata, list_xlevels, DV_predicted, CIs, kind,
+                    xlim, ylim, xlab, ylab, title, cols_user,
+                    IV_focal_1, IV_focal_1_values, IV_focal_2, IV_focal_2_values) {
+  
+  # if IV_focal_1 is NOT a factor
+  if (!IV_focal_1 %in% names(list_xlevels)) {
+    
+    if (is.null(xlim))  xlim <- c(min(testdata[,IV_focal_1]), max(testdata[,IV_focal_1]))
+    
+    if (is.null(IV_focal_2)) {
+      
+      plot(testdata[,DV_predicted] ~ testdata[,IV_focal_1], type = 'n', 
+           xlim = xlim, 
+           xlab = xlab,
+           ylim = ylim, 
+           ylab = ylab,
+           main = title)
+      
+      polygon(c(rev(testdata[,IV_focal_1]), testdata[,IV_focal_1]), 
+              c(rev(testdata$ci_ub), testdata$ci_lb), col = 'grey95', border = NA)
+      if (CIs) {
+        lines(testdata[,IV_focal_1], testdata$ci_ub, col = 'red', lwd = .4)  # lty = 'dashed',
+        lines(testdata[,IV_focal_1], testdata$ci_lb, col = 'red', lwd = .4)
+      }
+      lines(testdata[,IV_focal_1], testdata[,DV_predicted],  col = 'black', lwd = 1.3)
+      
+      grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
+    }
+    
+    if (!is.null(IV_focal_2)) { 
+      
+      # colours for the IV_focal_2_values
+      if (length(cols_user) >= length(IV_focal_2_values))  {
+        cols <- cols_user[1:length(IV_focal_2_values)]
+      } else {cols <- rainbow(length(IV_focal_2_values))}
+      
+      dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[1],]
+      
+      plot(dum[,DV_predicted] ~ dum[,IV_focal_1], type = 'l', 
+           xlim = xlim, 
+           xlab = xlab,
+           ylim = ylim, 
+           ylab = ylab,
+           main = title,
+           col = cols[1])
+      
+      for (lupe in 2:length(IV_focal_2_values)) {
+        
+        dum <- testdata[testdata[IV_focal_2] == IV_focal_2_values[lupe],]
+        
+        lines(dum[,IV_focal_1], dum[,DV_predicted], col = cols[lupe], lwd = 1.3)
+      }
+      
+      legvalues <- IV_focal_2_values
+      if (is.numeric(legvalues))  legvalues <- round(legvalues,3)
+      
+      leg_location <- legend_loc(x = testdata[,IV_focal_1], y = testdata[,DV_predicted], 
+                                 xlim = xlim, ylim = ylim)
+      
+      legend(leg_location, legend=legvalues, title=IV_focal_2, col=cols,  
+             bty="n", lty=1, lwd=2, cex = 0.75)   
+      
+      grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = .5)
+    }
+  } 
+  
+  
+  # if IV_focal_1 is a factor
+  if (IV_focal_1 %in% names(list_xlevels)) {
+    
+    # colours for the IV_focal_1_values
+    if (length(cols_user) >= length(IV_focal_1_values))  {
+      cols <- cols_user[1:length(IV_focal_1_values)]
+    } else {cols <- rainbow(length(IV_focal_1_values))}
+    
+    # if (is.null(ylim)) {
+    #   if (CIs) {ylim <- range( pretty(testdata$ci_lb), pretty(testdata$ci_ub))
+    #   } else {ylim <- range( pretty(testdata[,DV_predicted]))}
+    # }
+    # 
+    # if (kind != 'LOGISTIC')  ylim[2] <- ylim[2] + (ylim[2] * .05)
+    
+    if (is.null(IV_focal_2)) {  
+      
+      don <- t(testdata[DV_predicted]); colnames(don) <- IV_focal_1_values
+      
+      plot_bar <- barplot(don, beside=TRUE, legend.text=FALSE, col=cols,
+                          yaxp = c(min(ylim), max(ylim), 4),
+                          ylim=ylim, #yaxt="n", 
+                          xpd=FALSE,
+                          xlab = IV_focal_1,
+                          ylab = ylab,
+                          main = title)
+      
+      if (CIs) {
+        arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
+               lwd = 1.0, angle = 90, code = 3, length = 0.05)
+      }
+      
+      # graphics::legend("top", legend = IV_focal_1_values, bty="n", lwd=4, col=cols, cex = .80)
+    }
+    
+    if (!is.null(IV_focal_2)) {  
+      
+      plotdon_DV  <- unlist(testdata[DV_predicted])
+      
+      plotdon_IV1 <- unlist(testdata[IV_focal_1])
+      
+      plotdon_IV2 <- unlist(testdata[IV_focal_2])
+      
+      # if IV_focal_2 is not a factor, round to make the ticks shorter
+      if (!IV_focal_2 %in% names(list_xlevels))  plotdon_IV2 <- round(plotdon_IV2,2)
+      
+      plot_bar <- barplot(plotdon_DV ~ plotdon_IV1 + plotdon_IV2, beside=TRUE,
+                          legend.text=FALSE, col=rep(cols, length(IV_focal_1_values)), 
+                          yaxp = c(min(ylim), max(ylim), 4),
+                          ylim=ylim, #yaxt="n", 
+                          xpd=FALSE,
+                          xlab = IV_focal_2,
+                          ylab = ylab,
+                          main = title)
+      
+      if (CIs) {
+        arrows(plot_bar, t(testdata$ci_ub), plot_bar, t(testdata$ci_lb), 
+               lwd = 1.0, angle = 90, code = 3, length = 0.05)
+      }
+      graphics::legend("top", legend = IV_focal_1_values, title = IV_focal_1, 
+                       bty="n", lwd=4, col=cols, cex = .80)
+    }
+  }
+}
+
+
+
+
+# Goodness of Fit
+GoF_stats <- function(model) {
+  
+  # X2_Pearson <- sum(residuals(model, type = "pearson")^2)
+  
+  # https://stackoverflow.com/questions/63539723/aic-aicc-bic-formula-in-r-for-glm  
+  # see also vcdExtra
+  loglik <- logLik(model)
+  dev <- -2 * as.numeric(loglik)   # LR_chisq
+  
+  # satd <- loglik + dev / 2
+  # LR_chisq <- -2 * (loglik - satd)
+  
+  df <- model$df.residual
+  
+  pvalue <- pchisq(dev, df, lower.tail = FALSE)
+  
+  n   <- attributes(loglik)$nobs
+  p   <- attributes(loglik)$df
+  
+  AIC  <- dev + 2 * p  # model$aic                 -2 * ll + 2 * par
+  AICC <- AIC + (2 * p^2 + 2 * p) / (n - p - 1)
+  BIC  <- dev +  p * log(n)                   #    -2 * ll + log(ns) * par
+  
+  outp <- data.frame(loglik, dev, n, df, pvalue, AIC, AICC, BIC)
+  colnames(outp)[1:2] <- c('LogLik','Deviance')
+  
+  return(invisible(outp))
+}
+
+
 
 
 BF_interps <- function(BF_10 = NULL, BF_01 = NULL, BF_M1 = NULL, BF_M2 = NULL) {
@@ -419,28 +629,37 @@ quantile_residuals <- function(model) {
 # https://stackoverflow.com/questions/38109501/how-does-predict-lm-compute-confidence-interval-and-prediction-interval/38110406#38110406
 
 predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95, 
-                        bootstrap=FALSE, N_sims=100, model_type, family) {
+                        bootstrap=FALSE, N_sims=100, kind, family) {
   
   # # computing yhat manually, rather than using built-in predict  NOT USING  prob = factors
   # Xp <- model.matrix(delete.response(terms(modelMAIN)), newdata)
   # b <- coef(modelMAIN)
   # yhat <- c(Xp %*% b)  # c() reshape the single-column matrix to a vector
   
-  if (model_type == 'ZINFL') {
-    yhat_count <- predict(modelMAIN, newdata=newdata, type="count")
-    yhat_zero  <- predict(modelMAIN, newdata=newdata, type="zero")
-  } else {
-    yhatR <- predict(modelMAIN, newdata=newdata, type="response", se.fit = TRUE)
-    yhat <- yhatR$fit
-    yhat_se.fit <- yhatR$se.fit
-  }
+  if (kind == 'ZINFL') {
+    yhat_count <- predict(modelMAIN, newdata=newdata, type = "count")
+    # zero values are predicted:
+    yhat_zero  <- predict(modelMAIN, newdata=newdata, type = "zero", at = 0)  
+    # yhat_zero  <- predict(modelMAIN, newdata=newdata, type = "prob")  
+  } else if (kind == 'HURDLE') {
+      yhat_count <- predict(modelMAIN, newdata=newdata, type = "count")
+      # zero values are predicted:
+      yhat_zero  <- predict(modelMAIN, newdata=newdata, type = "prob")[,1]
+     # yhat_zero_0  <- predict(modelMAIN, newdata=newdata, type = "prob", at = 0:4)
+     # print(head(yhat_zero))
+     # print(head(yhat_zero_0))
+    } else {
+      yhatR <- predict(modelMAIN, newdata=newdata, type="response", se.fit = TRUE)
+      yhat <- yhatR$fit
+      yhat_se.fit <- yhatR$se.fit
+    }
   
   
   # CIs
   
   # not doing bootstrapping for MODERATED models because newdata would require values
   # for product terms & lm & glm sometimes alter the var names for interaction terms, too messy
-  if (bootstrap & model_type == 'MODERATED') {
+  if (bootstrap & kind == 'MODERATED') {
     message('\nBootstrapped CIs for a MODERATED regression model was requested but it is not')
     message('available in this version of the package. Regular CI values will be provided instead.\n')
     bootstrap <- FALSE
@@ -449,7 +668,8 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
   
   if (!bootstrap) {
     
-    if (model_type != 'ZINFL') {
+    if  (kind == 'OLS' | kind == 'MODERATED' | kind == 'LOGISTIC' | 
+         kind == 'POISSON' | kind == 'NEGBIN') {
       
       # # computing se.fit manually, rather than using built-in predict  NOT USING  prob = factors
       # var.fit <- rowSums((Xp %*% vcov(modelMAIN)) * Xp)  # point-wise variance for predicted mean
@@ -464,18 +684,18 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
       resmat <- cbind(yhat, ci_lb, ci_ub, yhat_se.fit)
       
       # # not needed when  type="response" on the above predict command
-      # if (model_type == 'LOGISTIC')
+      # if (kind == 'LOGISTIC')
       # # convert to probabilities
       #   resmat <- 1/(1 + exp(-resmat))
       # 
-      # if (model_type == 'COUNT')
+      # if (kind == 'COUNT')
       # # exponential function - inverse of log-link
       #   resmat <- exp(resmat)
       
       # resmat <- cbind(resmat, yhat_se.fit)
     }
     
-    if (model_type == 'ZINFL') {
+    if (kind == 'ZINFL' | kind == 'HURDLE') {
       
       ci_lb_count <- ci_ub_count <- ci_lb_zero <- ci_ub_zero <- rep(NA, length(yhat_count))
       
@@ -493,7 +713,7 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
     # real bootstrap parameters
     predicted_values <- predicted_values_count <- predicted_values_zero <- c()
     
-    if (model_type == 'OLS') {
+    if (kind == 'OLS') {
       
       for(i in 1:N_sims) {
         
@@ -505,31 +725,64 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
       }
     }
     
-    if (model_type == 'LOGISTIC' | model_type == 'COUNT') {
+    if (kind == 'LOGISTIC' | kind == 'POISSON') {   
       
       for(i in 1:N_sims) {
         
         bootsamp <- modelMAIN$data[sample(rownames(modelMAIN$data), replace=TRUE),]
         
-        modelboot <- glm(modelMAIN$formula, family = family, data=bootsamp)
+        modelboot <- glm(modelMAIN$formula, family=family, data=bootsamp)
+        
+        predicted_values <- cbind(predicted_values, predict(modelboot, newdata=newdata, type="response"))
+      }
+    }
+
+    if (kind == 'NEGBIN') {   
+      
+      for(i in 1:N_sims) {
+        
+        bootsamp <- modelMAIN$data[sample(rownames(modelMAIN$data), replace=TRUE),]
+        
+        modelboot <- MASS::glm.nb(modelMAIN$formula, 
+                                  family=MASS::negative.binomial(1, link="log"), data=bootsamp)
         
         predicted_values <- cbind(predicted_values, predict(modelboot, newdata=newdata, type="response"))
       }
     }
     
-    if (model_type == 'ZINFL') {
-      
-      if (family == 'zinfl_poisson') dist = 'poisson'
-      if (family == 'zinfl_negbin')  dist = 'negbin'
+    if (kind == 'ZINFL') {
       
       for(i in 1:N_sims) {
         
         bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
         
-        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist=dist, data=bootsamp)
+        modelboot <- pscl::zeroinfl(modelMAIN$formula, dist=family, data=bootsamp)
         
         predicted_values_count <- cbind(predicted_values_count, 
                                         predict(modelboot, newdata=newdata, type='count'))
+        
+        predicted_values_zero  <- cbind(predicted_values_zero,  
+                                        predict(modelboot, newdata=newdata, type='zero'))
+      }
+    }
+    
+    if (kind == 'HURDLE') {
+      
+      # dist	 character specification of count model family.
+      # The count model is typically a truncated Poisson or negative binomial regression 
+      # (with log link). The geometric distribution is a special case of the 
+      # negative binomial with size parameter equal to 1. For modeling the hurdle, 
+      # either a binomial model can be employed or a censored count distribution. 
+      
+      for(i in 1:N_sims) {
+        
+        bootsamp <- modeldata[sample(rownames(modeldata), replace=TRUE),]
+        
+        modelboot <- pscl::hurdle(modelMAIN$formula, dist=family, data=bootsamp)
+        
+        predicted_values_count <- cbind(predicted_values_count, 
+                                        predict(modelboot, newdata=newdata, type='count'))
+        
         predicted_values_zero  <- cbind(predicted_values_zero,  
                                         predict(modelboot, newdata=newdata, type='zero'))
       }
@@ -539,7 +792,7 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
     
     CI_hi_cut <- 1 - (1 - CI_level * .01) / 2
     
-    if (model_type == 'OLS' | model_type == 'LOGISTIC' | model_type == 'COUNT') {
+    if (kind == 'OLS' | kind == 'LOGISTIC' | kind == 'POISSON' | kind == 'NEGBIN') {
       
       ci_lb <- apply(predicted_values, 1, quantile, probs=CI_lo_cut)
       ci_ub <- apply(predicted_values, 1, quantile, probs=CI_hi_cut)
@@ -547,7 +800,7 @@ predict_boc <- function(modelMAIN, modeldata, newdata, CI_level = 95,
       resmat <- cbind(yhat, ci_lb, ci_ub)
     }
     
-    if (model_type == 'ZINFL') {
+    if (kind == 'ZINFL' | kind == 'HURDLE') {
       
       ci_lb_count <- apply(predicted_values_count, 1, quantile, probs=CI_lo_cut)
       ci_ub_count <- apply(predicted_values_count, 1, quantile, probs=CI_hi_cut)
