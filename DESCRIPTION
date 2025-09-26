@@ -1,8 +1,8 @@
 Package: SIMPLE.REGRESSION
 Type: Package
 Title: OLS, Moderated, Logistic, and Count Regressions Made Simple
-Version: 0.2.6
-Date: 2025-06-18
+Version: 0.2.7
+Date: 2025-09-26
 Authors@R: person(given = c("Brian", "P."), 
                   family = "O'Connor", 
                   role =c("aut","cre"), 
@@ -23,13 +23,12 @@ Description: Provides SPSS- and SAS-like output for least squares multiple regre
     and lme models. There is also a function for partial and semipartial
     correlations and a function for conducting Cohen's
     set correlation analyses.
-Imports: graphics, stats, utils, nlme, MASS, BayesFactor, rstanarm,
-        pscl
+Imports: graphics, stats, utils, nlme, MASS, BayesFactor,pscl
 Depends: R (>= 2.10)
 LazyLoad: yes
 LazyData: yes
 License: GPL (>= 2)
 NeedsCompilation: no
-Packaged: 2025-06-20 05:26:23 UTC; brianoconnor
+Packaged: 2025-09-26 23:28:52 UTC; brianoconnor
 Repository: CRAN
-Date/Publication: 2025-06-20 08:50:17 UTC
+Date/Publication: 2025-09-26 23:50:08 UTC

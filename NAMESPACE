@@ -26,6 +26,4 @@ importFrom("grDevices", bitmap, bmp, dev.off, jpeg, png, tiff, rainbow)
 importFrom(BayesFactor, ttest.tstat, anovaBF, extractBF, ttestBF, posterior,
            lmBF, linearReg.R2stat)
 
-importFrom(rstanarm, posterior_interval, stan_glm, neg_binomial_2)
-
 importFrom(pscl, zeroinfl, vuong, hurdle)

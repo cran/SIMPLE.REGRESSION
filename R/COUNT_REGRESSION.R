@@ -5,10 +5,10 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                               offset = NULL,
                               plot_type = 'residuals',
                               CI_level = 95,
-                              MCMC = FALSE,
-                              Nsamples = 4000,
                               GoF_model_types = TRUE,
                               verbose=TRUE ) {
+
+  # # MCMC = FALSE, Nsamples = 4000,  Sept 2025: the rstanarm package is being removed from CRAN
   
   
   # 2 options in R for Negative Binomial = MASS::glm.nb, & MASS::negative.binomial
@@ -414,36 +414,37 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       }
     }
     
-    if (MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
-      
-      if (family == 'poisson') 
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = family, 
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
-      
-      if (family == 'quasipoisson') {
-        message("\n\nFamily = 'quasipoisson' analyses are currently not possible for")
-        message("the MCMC analyses. family = 'poisson' will therefore be used instead.\n")
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "poisson", 
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
-      }
-      
-      if (kind == 'NEGBIN') 
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "neg_binomial_2", 
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
-      
-      MCMC_mod_coefs <- cbind(coef(MCMC_mod), 
-                              posterior_interval(MCMC_mod, prob= CI_level * .01)[1:length(coef(MCMC_mod)),]   )
-      
-      MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
-      
-      colnames(MCMC_mod_coefs) <- c('B', 'B_ci_lb', 'B_ci_ub',
-                                    'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
-      
-      if (verbose) {
-        message('\n\nCoefficients from Bayesian MCMC analyses:\n')
-        print(round_boc(MCMC_mod_coefs,3), print.gap=4)
-      }
-    }
+    # # Sept 2025: the rstanarm package is being removed from CRAN
+    # if (MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
+    #   
+    #   if (family == 'poisson') 
+    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = family, 
+    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
+    #   
+    #   if (family == 'quasipoisson') {
+    #     message("\n\nFamily = 'quasipoisson' analyses are currently not possible for")
+    #     message("the MCMC analyses. family = 'poisson' will therefore be used instead.\n")
+    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "poisson", 
+    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
+    #   }
+    #   
+    #   if (kind == 'NEGBIN') 
+    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "neg_binomial_2", 
+    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
+    #   
+    #   MCMC_mod_coefs <- cbind(coef(MCMC_mod), 
+    #                           rstanarm::posterior_interval(MCMC_mod, prob= CI_level * .01)[1:length(coef(MCMC_mod)),]   )
+    #   
+    #   MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
+    #   
+    #   colnames(MCMC_mod_coefs) <- c('B', 'B_ci_lb', 'B_ci_ub',
+    #                                 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    #   
+    #   if (verbose) {
+    #     message('\n\nCoefficients from Bayesian MCMC analyses:\n')
+    #     print(round_boc(MCMC_mod_coefs,3), print.gap=4)
+    #   }
+    # }
     
     # likelihood ratio tests
     if (length(preds) > 1) {
@@ -569,7 +570,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)], offset)
     }
   }
-    
+  
   if (kind == 'ZINFL' | kind == 'HURDLE') {
     # modeldata <- data.frame(modelMAIN$y, modelMAIN$x$zero[,2:ncol(modelMAIN$x$zero)])
     # colnames(modeldata) <- c(DV,colnames(modelMAIN$x$zero)[2:ncol(modelMAIN$x$zero)])
@@ -579,8 +580,8 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   }
   
   modeldata$predicted <- modelMAIN$fitted.values
-
-    
+  
+  
   # modelcoefs <- modelMAINsum$coefs
   modelcoefs <- modelMAINsum$coefficients
   

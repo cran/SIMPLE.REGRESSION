@@ -63,9 +63,9 @@ plotfun <- function(testdata, list_xlevels, DV_predicted, CIs, kind,
            ylab = ylab,
            main = title)
       
-      polygon(c(rev(testdata[,IV_focal_1]), testdata[,IV_focal_1]), 
-              c(rev(testdata$ci_ub), testdata$ci_lb), col = 'grey95', border = NA)
       if (CIs) {
+        polygon(c(rev(testdata[,IV_focal_1]), testdata[,IV_focal_1]), 
+                c(rev(testdata$ci_ub), testdata$ci_lb), col = 'grey95', border = NA)
         lines(testdata[,IV_focal_1], testdata$ci_ub, col = 'red', lwd = .4)  # lty = 'dashed',
         lines(testdata[,IV_focal_1], testdata$ci_lb, col = 'red', lwd = .4)
       }

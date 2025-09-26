@@ -158,8 +158,6 @@
 	The Bayesian MCMC analyses can be time-consuming for larger datasets. The MCMC 
 	analyses are conducted using functions, and their default settings, from the 
 	BayesFactor package (Morey & Rouder, 2024).
-	The MCMC results can be verified using the model checking functions in the
-	rstanarm package (e.g., Muth, Oravecz, & Gabry, 201).
 }
 \value{An object of class "MODERATED_REGRESSION". The object is a list containing the
 	following possible components:
@@ -199,10 +197,6 @@
 \cr\cr {Morey, R. & Rouder, J. (2024). \emph{BayesFactor: Computation of Bayes Factors for 
         Common Designs.} R package version 0.9.12-4.7, 
         https://github.com/richarddmorey/bayesfactor.}
-\cr\cr {Muth, C., Oravecz, Z., & Gabry, J. (2018). User-friendly Bayesian regression 
-        modeling: A tutorial with rstanarm and shinystan. \emph{The Quantitative Methods 
-        for Psychology, 14(2),} 99119. 
-        \cr https://doi.org/10.20982/tqmp.14.2.p099}
 \cr\cr {O'Connor, B. P. (1998). All-in-one programs for exploring interactions in moderated 
 	multiple regression. \emph{Educational and Psychological Measurement, 58,} 833-837.}
 \cr\cr {Pedhazur, E. J. (1997). \emph{Multiple regression in behavioral research: Explanation 
