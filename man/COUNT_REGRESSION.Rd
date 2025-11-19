@@ -14,6 +14,8 @@
                  offset = NULL,
                  plot_type = 'residuals',
                  CI_level = 95,
+                 MCMC = FALSE,
+                 Nsamples = 4000,
                  GoF_model_types = TRUE,
                  verbose = TRUE )
 }
@@ -68,6 +70,12 @@
   \code{}(optional) The confidence interval for the output, in whole numbers.
   The default is 95.}
 
+ \item{MCMC}{
+  \code{}(logical) Should Bayesian MCMC analyses be conducted? The default is FALSE.}
+
+ \item{Nsamples}{
+  \code{}(optional) The number of samples for MCMC analyses. The default is 10000.}
+
  \item{GoF_model_types}{
   \code{}(optional) Should fit coefficients be computed for multiple model 
   types (Poisdon, quasi-Poisson, negative binomial, zero-inflated Poisson, 
@@ -84,6 +92,12 @@
   It supplements the output from these packages with additional statistics and 
 	in formats that resemble SPSS and SAS output. The predictor variables can 
 	be numeric or factors.
+	
+	The function assigns contrasts (dummy codes) to factor variables that do not
+	already have contrasts. The baseline group for the dummy codes is determined 
+	by the alphabetic/numeric order of the factor levels. If the terms "control"
+	or "Control" or "baseline" or "Baseline" appear in the names of a factor
+	level, then that factor level is used as the dummy codes baseline.
 	
   The following descriptions of zero-inflated and hurdle models were
   provided by Atkins and Baldwin (2013), by Friendly and Meyer (2016), and at
@@ -150,6 +164,16 @@
 	\strong{Predicted values}, for selected levels of the predictor variables,
 	can be produced and plotted using the PLOT_MODEL funtion in this package.
 
+	\strong{The Bayesian MCMC analyses} can be time-consuming for larger datasets. The MCMC 
+	analyses are conducted using functions, and their default settings, from the 
+	rstanarm package (Goodrich, Gabry, Ali, & Brilleman, 2024). 
+	Family = 'quasibinomial' analyses are currently not possible for the MCMC 
+	analyses. model_type = 'binomial' is therefore used instead.
+	The Bayesian MCMC analyses are also currently not available for zero-inflated 
+	poisson and zero-inflated negative binomial models.
+	
+	The MCMC results can be verified using the model checking functions in the
+	rstanarm package (e.g., Muth, Oravecz, & Gabry, 2018).
 
   Good sources for interpreting count data regression residuals and diagnostics plots:
 	\itemize{
@@ -186,6 +210,10 @@
        Chapman and Hall/CRC.}
 \cr\cr {Hardin, J. W., & Hilbe, J. M. (2007). \emph{Generalized linear models 
         and extensions.} Stata Press.}
+\cr\cr {Muth, C., Oravecz, Z., & Gabry, J. (2018). User-friendly Bayesian regression 
+        modeling: A tutorial with rstanarm and shinystan. \emph{The Quantitative Methods 
+        for Psychology, 14(2),} 99119. 
+        \cr https://doi.org/10.20982/tqmp.14.2.p099}
 \cr\cr {Orme, J. G., & Combs-Orme, T. (2009). \emph{Multiple regression with discrete 
         dependent variables.} Oxford University Press.}
 \cr\cr {Rindskopf, D. (2023). Generalized linear models. In H. Cooper, M. N. 
@@ -210,12 +238,6 @@ COUNT_REGRESSION(data=data_Kremelburg_2011, DV='HURTATWK',
 # with an offset variable
 COUNT_REGRESSION(data=data_Orme_2009_5, DV='NumberAdopted', forced=c('Married'), 
                  offset='lnYearsFostered')
-
-omod <- COUNT_REGRESSION(data=data_Orme_2009_5, DV='NumberAdopted', forced=c('Married'), 
-                model_type = 'zinfl_negbin',
-                 offset='lnYearsFostered')
-
-
 
 # zero-inflated poisson regression
 COUNT_REGRESSION(data=data_Kremelburg_2011, DV='HURTATWK', 

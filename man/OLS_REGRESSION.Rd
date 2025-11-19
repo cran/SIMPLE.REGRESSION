@@ -10,7 +10,6 @@
   The output includes Bayes Factors and, if requested, regression coefficients from
   Bayesian Markov Chain Monte Carlo (MCMC) analyses.}
 \usage{OLS_REGRESSION(data, DV, forced=NULL, hierarchical=NULL, 
-               COVARS=NULL,
                plot_type = 'residuals', 
                CI_level = 95,
                MCMC = FALSE,
@@ -35,11 +34,6 @@
   a hierarchical regression. The variables can be numeric or factors.
   \cr Example: hierarchical = list(step1=c('VarA', 'VarB'), step2=c('VarC', 'VarD'))}
 
-  \item{COVARS}{
-  \code{}(optional) The name(s) of possible covariates variable for a moderated regression
-  analysis.
-  \cr Example: COVARS = c('CovarA', 'CovarB', 'CovarC')}
-  	    
   \item{plot_type}{
   \code{}(optional)  The kind of plots, if any. The options are:
   \itemize{
@@ -71,6 +65,12 @@
 	so that it resembles SPSS and SAS regression output. The predictor
 	variables can be numeric or factors.
 	
+	The function assigns contrasts (dummy codes) to factor variables that do not
+	already have contrasts. The baseline group for the dummy codes is determined 
+	by the alphabetic/numeric order of the factor levels. If the terms "control"
+	or "Control" or "baseline" or "Baseline" appear in the names of a factor
+	level, then that factor level is used as the dummy codes baseline.
+
 	The Bayesian MCMC analyses can be time-consuming for larger datasets. The MCMC 
 	analyses are conducted using functions, and their default settings, from the 
 	BayesFactor	package (Morey & Rouder, 2024). 

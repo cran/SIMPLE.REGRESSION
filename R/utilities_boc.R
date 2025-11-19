@@ -1,6 +1,39 @@
 
 
 
+# better names for dummy contrasts function
+better_contrast_noms <- function(contrs, nom_max_len = 21) {
+  
+  new_noms <- c()
+  
+  # the baseline (all 0s)
+  base_level <- apply(contrs, 1, function(row) all(row == 0)) 
+  base_level <- rownames(contrs)[which(base_level == TRUE)]
+  base_level <- gsub(" ", "_", base_level)
+  base_level <- substr(base_level, 1, 10)
+  if (substr(base_level, nom_max_len, nom_max_len) == '_')  
+    base_level <- substr(base_level, 1, (nom_max_len - 1))
+  
+  new_nom_max_len <- nom_max_len - nchar(base_level) - 4
+  
+  for (lupe in 1:ncol(contrs)) {
+    
+    nom_max_len <- 20
+    
+    comp <- names(which(contrs[,lupe] == 1))
+    comp <- gsub(" ", "_", comp)
+    comp <- substr(comp, 1, new_nom_max_len)
+    if (substr(comp, new_nom_max_len, new_nom_max_len) == '_')  
+      comp <- substr(comp, 1, (new_nom_max_len - 1))
+    
+    new_noms <- c(new_noms, paste('__', paste(comp, base_level, sep='_vs_'), sep=''))
+  }
+  return(invisible(new_noms))
+}
+
+
+
+
 # finds an empty space for locating the plot legend
 legend_loc <- function(x, y, xlim, ylim) {
   
@@ -302,7 +335,6 @@ BF_interps <- function(BF_10 = NULL, BF_01 = NULL, BF_M1 = NULL, BF_M2 = NULL) {
 # Anova Table (Type III tests)
 
 ANOVA_TABLE <- function(data, model) {
-  
   
   # the lm function uses only Type I sums of squares
   # to get the ANOVA table & partial eta-squared values, need the SS for each

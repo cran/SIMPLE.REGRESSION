@@ -12,7 +12,8 @@ importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova,
              binomial, coef, confint.default,
              delete.response, fitted, glm, logLik, pchisq,
              poisson, relevel, residuals, var, cov2cor,
-             density, pbinom, runif, loess.smooth, pbeta, ppois, formula)
+             density, pbinom, runif, loess.smooth, pbeta, ppois, formula, contr.treatment,
+             "contrasts<-")
 
 importFrom("graphics", lines, par, points, layout, layout.show,
            abline, legend, rect, hist, arrows, axis, barplot, grid, polygon)
@@ -27,3 +28,5 @@ importFrom(BayesFactor, ttest.tstat, anovaBF, extractBF, ttestBF, posterior,
            lmBF, linearReg.R2stat)
 
 importFrom(pscl, zeroinfl, vuong, hurdle)
+
+importFrom(rstanarm, posterior_interval, stan_glm, neg_binomial_2)

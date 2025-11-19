@@ -1,16 +1,30 @@
 
+# 
+# forced=NULL; hierarchical=NULL;
+# model_type = 'poisson';
+# offset = NULL;
+# plot_type = 'residuals';
+# CI_level = 95;
+# MCMC = FALSE;
+# Nsamples = 4000;
+# GoF_model_types = TRUE;
+# verbose=TRUE
+# 
+# data=data_Orme_2009_5; DV='NumberAdopted'; forced=c('Married'); 
+# offset='lnYearsFostered'
+# 
+
 
 COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                               model_type = 'poisson',
                               offset = NULL,
                               plot_type = 'residuals',
                               CI_level = 95,
+                              MCMC = FALSE,
+                              Nsamples = 4000,
                               GoF_model_types = TRUE,
                               verbose=TRUE ) {
 
-  # # MCMC = FALSE, Nsamples = 4000,  Sept 2025: the rstanarm package is being removed from CRAN
-  
-  
   # 2 options in R for Negative Binomial = MASS::glm.nb, & MASS::negative.binomial
   # MASS::negative.binomial replicates SPSS "negative binomial with log link"
   # MASS::glm.nb involves a theta value, and it can be done in SPSS using the Custom 
@@ -57,57 +71,112 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
   }
   
+  if (is.null(forced) & is.null(hierarchical) ) {
+    message('\n\nThe data for the analyses were not properly specified.\n')
+    message('\nThe forced & hierarchical arguments were both NULL (i.e, not provided). Expect errors.\n')
+  }
+  
   if (NAflag) cat('\nCases with missing values were found and removed from the data matrix.\n')
   
-  if (is.null(forced) & is.null(hierarchical) ) {
-    message('\n\nThe data for the analyses were not properly specified. Expect errors.\n')
-    message('\nThe forced & hierarchical arguments were NULL (i.e, not provided).\n')
-    message('\nThere is no way of determining what analyses should be conducted.\n')
-  }
   
   # gathering all of the predictor variable names
   allIVnoms <- -9999
   if (!is.null(forced))        allIVnoms <- c(allIVnoms, forced)
   if (!is.null(hierarchical))  allIVnoms <- c(allIVnoms, unlist(hierarchical) )
+  if (!is.null(offset))        allIVnoms <- c(allIVnoms, offset)
   allIVnoms <- allIVnoms[-1]
   
-  donnesRED <- donnes[c(DV,allIVnoms,offset)]  # a version of donnes that contains only the variables in the analyses
+  donnesMOD <- donnes[c(DV,allIVnoms,offset)]  # a version of donnes that contains only the variables in the analyses
+  
+  
+  # converting character IVs to factors
+  for (lupe in 1:length(allIVnoms)) {
+    if (is.character(donnesMOD[,allIVnoms[lupe]])) {
+      message('\n', allIVnoms[lupe], ' is a character variable. It will be converted into a factor.\n')
+      donnesMOD[,allIVnoms[lupe]] <- as.factor(donnesMOD[,allIVnoms[lupe]])
+    }
+  }
+  
+  # check if all IVs are either numeric or factors
+  IVclasses <- sapply(donnesMOD[,allIVnoms], class)
+  if (!all(IVclasses == 'numeric' | IVclasses == 'integer' | IVclasses == 'factor')) {
+    message('\n The following variables are not numeric, integers, or factors. Expect errors.')
+    names(
+      IVclasses[IVclasses != 'numeric' &  IVclasses != 'integer' & IVclasses != 'factor' ])
+  }
   
   
   # descriptives
   if (verbose) {
     # descriptives for numeric variables
-    donnesNUM <- donnes[sapply(donnesRED,is.numeric)] # selecting only numeric variables
+    donnesNUM <- donnesMOD[,allIVnoms]
+    donnesNUM <- donnesNUM[sapply(donnesNUM,is.numeric)] # selecting only numeric variables
     if (ncol(donnesNUM) != 0) {
       minmax <- t(apply(donnesNUM, 2, range))
-      descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), Min=minmax[,1], Max=minmax[,2]) 
+      descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), 
+                          Min=minmax[,1], Max=minmax[,2]) 
       message('\n\nDescriptive statistics for the numeric variables:\n')
       print(round(descs,2), print.gap=4)
     }
     
     # frequencies for factors
-    donnesFAC <- donnes[sapply(donnesRED,is.factor)] # selecting only factor variables
+    donnesFAC <- donnesMOD[,allIVnoms]
+    donnesFAC <- donnesFAC[sapply(donnesFAC,is.factor)] # selecting only factor variables
     if (ncol(donnesFAC) != 0) {
       message('\n\nCategory frequencies for the factor variables:\n')
       print(apply((donnesFAC), 2, table))
     }
-    rm(donnesRED, donnesNUM, donnesFAC)
+    
+    rm(donnesNUM, donnesFAC)
   }
   
   
-  ### Check contrasts for binary predictors (R creates contrasts automatically
-  ### for categorical predictor, with default 0/1 coding)
-  # with(couple.df, {
-  #   print(contrasts(gender))
-  #   print(contrasts(infidelity))
-  # })
-  # 
+  # test if factor variables have contrasts; if not, add contrasts with names
+  IV_factors <- IVclasses[IVclasses == 'factor' ]
+  if (length(IV_factors) > 0) {
+    for (lupe in 1:length(IV_factors)) {
+      
+      if (is.null(attr( donnesMOD[,names(IV_factors[lupe])], "contrasts" ))) {
+        
+        fac_levels <- levels(donnesMOD[,names(IV_factors[lupe])])
+        
+        # print(fac_levels)
+        # print(lupe)
+        
+        # The baseline group is based on alphabetic/numerical order, unless the terms "control"
+        # or "Control" or "baseline" or "Baseline" appear in the names of a factor
+        # level, in which case that factor level is used as the dummy codes baseline.
+        if (length(grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)) > 0) {
+          base_level <- grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)
+        } else {
+          base_level <- order(fac_levels, decreasing = FALSE, na.last = TRUE)[1]
+        }
+        
+        custom_contrasts <- contr.treatment(length(fac_levels), base = base_level)
+        
+        colnames(custom_contrasts) <-
+          better_contrast_noms(contrasts(donnesMOD[,names(IV_factors[lupe])]))
+        
+        # apply the contrast matrix to the factor variable
+        contrasts(donnesMOD[,names(IV_factors[lupe])]) <- custom_contrasts
+      }
+    }
+  }
+  
+  # display the contrasts for factors
+  if (verbose & length(IV_factors) > 0) {
+    for (lupe in 1:length(IV_factors)) {
+      message('\nThe contrasts for ', names(IV_factors[lupe]), ' are:\n')
+      print(contrasts(donnesMOD[,names(IV_factors[lupe])]), print.gap=4)
+    }
+  }
+  
   
   if (verbose) {
     message('\nDV frequencies:')
-    print(table(donnes[,DV]))
+    print(table(donnesMOD[,DV]))
     # histogram with a normal curve
-    # histogram <- hist(donnes[,DV], breaks=20, col="red", xlab=DV, main="Histogram") 
+    # histogram <- hist(donnesMOD[,DV], breaks=20, col="red", xlab=DV, main="Histogram") 
   }
   
   
@@ -122,21 +191,21 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                                   paste(" + offset(", offset, ")")) )
   
   if (kind == 'POISSON')
-    modelNULL <- glm(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE, 
+    modelNULL <- glm(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE, 
                      family = family)   # (link="log"))
   
   if (kind == 'NEGBIN') {
-    # modelNULL <- MASS::glm.nb(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE)
-    modelNULL <- glm(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE, 
+    # modelNULL <- MASS::glm.nb(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE)
+    modelNULL <- glm(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE, 
                      family = MASS::negative.binomial(1, link="log"))
   }
   
   if (kind == 'ZINFL')
-    modelNULL <- pscl::zeroinfl(formNULL, data = donnes, 
+    modelNULL <- pscl::zeroinfl(formNULL, data = donnesMOD, 
                                 model=TRUE, x=TRUE, y=TRUE, dist = family)
   
   if (kind == 'HURDLE')
-    modelNULL <- pscl::hurdle(formNULL, data = donnes, 
+    modelNULL <- pscl::hurdle(formNULL, data = donnesMOD, 
                               model=TRUE, x=TRUE, y=TRUE, dist = family)
   
   if (kind == 'ZINFL' | kind == 'HURDLE') 
@@ -208,7 +277,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     if (lupe > 1) preds <- c(preds, unlist(hierarchical[lupe]))
     
-    donnesH <- donnes[,c(DV,preds,offset)]
+    donnesH <- donnesMOD[,c(DV,preds,offset)]
     
     if (is.null(offset))
       formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
@@ -231,7 +300,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                                   model=TRUE, x=TRUE, y=TRUE, dist = family)
     
     if (kind == 'HURDLE')
-      modelMAIN <- pscl::hurdle(formMAIN, data = donnes, 
+      modelMAIN <- pscl::hurdle(formMAIN, data = donnesH, 
                                 model=TRUE, x=TRUE, y=TRUE, dist = family)
     
     if (kind == 'ZINFL' | kind == 'HURDLE')
@@ -323,9 +392,9 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     # Overdispersion test based on the just the DV
     # adapted from qcc.overdispersion.test
-    N <- length(donnes[,DV])
-    var_observed <- var(donnes[,DV])
-    var_theoretical <- mean(donnes[,DV])
+    N <- length(donnesMOD[,DV])
+    var_observed <- var(donnesMOD[,DV])
+    var_theoretical <- mean(donnesMOD[,DV])
     D <- (var_observed * (N - 1)) / var_theoretical
     ratio_obs.theo <- var_observed / var_theoretical
     pvalue <- 1 - pchisq(D, N - 1)
@@ -414,37 +483,36 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       }
     }
     
-    # # Sept 2025: the rstanarm package is being removed from CRAN
-    # if (MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
-    #   
-    #   if (family == 'poisson') 
-    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = family, 
-    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
-    #   
-    #   if (family == 'quasipoisson') {
-    #     message("\n\nFamily = 'quasipoisson' analyses are currently not possible for")
-    #     message("the MCMC analyses. family = 'poisson' will therefore be used instead.\n")
-    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "poisson", 
-    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
-    #   }
-    #   
-    #   if (kind == 'NEGBIN') 
-    #     MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "neg_binomial_2", 
-    #                                    refresh = 0, algorithm="sampling", iter = Nsamples)
-    #   
-    #   MCMC_mod_coefs <- cbind(coef(MCMC_mod), 
-    #                           rstanarm::posterior_interval(MCMC_mod, prob= CI_level * .01)[1:length(coef(MCMC_mod)),]   )
-    #   
-    #   MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
-    #   
-    #   colnames(MCMC_mod_coefs) <- c('B', 'B_ci_lb', 'B_ci_ub',
-    #                                 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
-    #   
-    #   if (verbose) {
-    #     message('\n\nCoefficients from Bayesian MCMC analyses:\n')
-    #     print(round_boc(MCMC_mod_coefs,3), print.gap=4)
-    #   }
-    # }
+    if (MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
+
+      if (family == 'poisson')
+        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = family,
+                                       refresh = 0, algorithm="sampling", iter = Nsamples)
+
+      if (family == 'quasipoisson') {
+        message("\n\nFamily = 'quasipoisson' analyses are currently not possible for")
+        message("the MCMC analyses. family = 'poisson' will therefore be used instead.\n")
+        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "poisson",
+                                       refresh = 0, algorithm="sampling", iter = Nsamples)
+      }
+
+      if (kind == 'NEGBIN')
+        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "neg_binomial_2",
+                                       refresh = 0, algorithm="sampling", iter = Nsamples)
+
+      MCMC_mod_coefs <- cbind(coef(MCMC_mod),
+                              rstanarm::posterior_interval(MCMC_mod, prob= CI_level * .01)[1:length(coef(MCMC_mod)),]   )
+
+      MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
+
+      colnames(MCMC_mod_coefs) <- c('B', 'B_ci_lb', 'B_ci_ub',
+                                    'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+
+      if (verbose) {
+        message('\n\nCoefficients from Bayesian MCMC analyses:\n')
+        print(round_boc(MCMC_mod_coefs,3), print.gap=4)
+      }
+    }
     
     # likelihood ratio tests
     if (length(preds) > 1) {
@@ -670,7 +738,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     preds <- unlist(hierarchical[1])
     
-    donnesH <- donnes[,c(DV,preds,offset)]
+    donnesH <- donnesMOD[,c(DV,preds,offset)]
     
     if (is.null(offset))
       formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
@@ -694,10 +762,10 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     model_zinfl_negbin <- pscl::zeroinfl(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
     GoFs_zinfl_negbin <- GoF_stats(model = model_zinfl_negbin)
     
-    model_hurdle_poisson <- pscl::hurdle(formMAIN, data=donnes, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
+    model_hurdle_poisson <- pscl::hurdle(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
     GoFs_hurdle_poisson <- GoF_stats(model = model_hurdle_poisson)
     
-    model_hurdle_negbin <- pscl::hurdle(formMAIN, data=donnes, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
+    model_hurdle_negbin <- pscl::hurdle(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
     GoFs_hurdle_negbin <- GoF_stats(model = model_hurdle_negbin)
     
     GoFs <- rbind(GoFs_pois, GoFs_quasipois, GoFs_negbin, GoFs_zinfl_poisson, 
@@ -721,7 +789,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   # (because lm changes names & types and the original variables are needed for PLOTMODEL)
   # factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
   factor_variables <- list_xlevels <- names(modelMAIN$xlevels)
-  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
+  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnesMOD[,factor_variables]
   
   
   output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum,

@@ -3,7 +3,7 @@
 PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
   
   if (as.character(match.call()[[1]]) == "PARTIAL_COEFS") {
-    warning('\nA package function have been changed:
+    warning('\nA package function has been changed:
              \nplease use PARTIAL_COR instead of PARTIAL_COEFS for partial correlations.\n\n', call. = FALSE) 
   }
   
@@ -20,8 +20,7 @@ PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
   
   # is data a correlation matrix 
   if (nrow(data) == ncol(data)) {
-    if (all(diag(data==1))) {datakind = 'cormat'}} else{datakind = 'raw'
-    }
+    if (all(diag(data==1))) {datakind = 'cormat'}} else{datakind = 'raw'}
   
   if (datakind == 'cormat' & is.null(Ncases))  
     message('\nNcases must be provided when data is a correlation matrix.\n')         # FIX
@@ -41,7 +40,7 @@ PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
     
     # check if all are numeric
     if (any(apply(donnes, 2, is.numeric) == FALSE)) 
-      stop("Not all of the variabels are numeric.")
+      stop("Not all of the variables are numeric.")
     
     Ncases <- nrow(donnes)
     
@@ -79,6 +78,8 @@ PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
     t <- Ry.c * sqrt( df / (1 - Ry.c^2))
     
     pt <- 2*pt(-abs(t), df=df)
+
+    diag(t) <- diag(pt) <- NA
   }
   
   
@@ -130,6 +131,7 @@ PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
     }
   }
   
+  
   if (verbose) {
     
     # cat('\nThe Y variables are:\n')
@@ -145,7 +147,7 @@ PARTIAL_COR <- function(data, Y, X=NULL, C=NULL, Ncases=NULL, verbose=TRUE) {
       cat('\n\nCorrelations between the Y variables before partialling:\n\n')
       print(round(Ryy,3), print.gap=2)
       
-      cat('\n\nCorrelations between the Y variables after partialling out the C variables:\n\n')
+      cat('\n\nCorrelations between the Y variables after partialling the C variables out of the Y variables:\n\n')
       print(round(Ry.c,3), print.gap=2)
       
       cat('\n\nt-Statistic:\n')

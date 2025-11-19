@@ -66,21 +66,21 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
       
       type <- 'Partial'
       
-      Rdb <- bigR[x = setD, y = setB]
+      Rdb <- bigR[x = setD, y = setB, drop = FALSE]
       
-      Rd  <- bigR[x = setD, y = setD]
-      Ra  <- bigR[x = setA, y = setA]
+      Rd  <- bigR[x = setD, y = setD, drop = FALSE]
+      Ra  <- bigR[x = setA, y = setA, drop = FALSE]
       
-      Rda <- bigR[x = setD, y = setA]
+      Rda <- bigR[x = setD, y = setA, drop = FALSE]
       
       Cd.a <- Rd - Rda %*% solve(Ra) %*% t(Rda) 
       
-      Rb  <- bigR[x = setB, y = setB]
-      Rba <- bigR[x = setB, y = setA]
+      Rb  <- bigR[x = setB, y = setB, drop = FALSE]
+      Rba <- bigR[x = setB, y = setA, drop = FALSE]
       
       Cb.a <- Rb - Rba %*% solve(Ra) %*% t(Rba) 
       
-      Rab <-  bigR[x = setA, y = setB]
+      Rab <-  bigR[x = setA, y = setB, drop = FALSE]
       
       Cd.a_b.a <- Rdb - Rda %*% solve(Ra) %*% Rab 
       
@@ -101,15 +101,15 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
     
     type <- 'X Semipartial'
     
-    Rd <- bigR[x = setD, y = setD]
+    Rd <- bigR[x = setD, y = setD, drop = FALSE]
     
-    Rb  <- bigR[x = setB, y = setB]
-    Ra  <- bigR[x = setA, y = setA]
-    Rba <- bigR[x = setB, y = setA]
-    Rab <- bigR[x = setA, y = setB]
-    Rdb <- bigR[x = setD, y = setB]
+    Rb  <- bigR[x = setB, y = setB, drop = FALSE]
+    Ra  <- bigR[x = setA, y = setA, drop = FALSE]
+    Rba <- bigR[x = setB, y = setA, drop = FALSE]
+    Rab <- bigR[x = setA, y = setB, drop = FALSE]
+    Rdb <- bigR[x = setD, y = setB, drop = FALSE]
     
-    Rda <- bigR[x = setD, y = setA]
+    Rda <- bigR[x = setD, y = setA, drop = FALSE]
     
     Cb.a <- Rb - Rba %*% solve(Ra) %*% t(Rba) 
     
@@ -119,9 +119,9 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
     
     H <- Cd_b.a %*% solve(Cb.a) %*% t(Cd_b.a)
     
-    Rdab <- bigR[x = setD, y = c(setA, setB)]
+    Rdab <- bigR[x = setD, y = c(setA, setB), drop = FALSE]
     
-    RAB <- bigR[x = c(setA,setB), y = c(setA,setB)]
+    RAB <- bigR[x = c(setA,setB), y = c(setA,setB), drop = FALSE]
     
     E <- Rd - Rdab %*% solve((RAB)) %*% t(Rdab)
     
@@ -133,23 +133,23 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
     
     type <- 'Y Semipartial'
     
-    Rd  <- bigR[x = setD, y = setD]
-    Rc  <- bigR[x = setC, y = setC]
-    Rdc <- bigR[x = setD, y = setC]
+    Rd  <- bigR[x = setD, y = setD, drop = FALSE]
+    Rc  <- bigR[x = setC, y = setC, drop = FALSE]
+    Rdc <- bigR[x = setD, y = setC, drop = FALSE]
     
     Cd.c <- Rd - Rdc %*% solve(Rc) %*% t(Rdc)
     
-    Rb <- bigR[x = setB, y = setB]
+    Rb <- bigR[x = setB, y = setB, drop = FALSE]
     
-    Rdb <- bigR[x = setD, y = setB]
+    Rdb <- bigR[x = setD, y = setB, drop = FALSE]
     
-    Rcb <- bigR[x = setC, y = setB]
+    Rcb <- bigR[x = setC, y = setB, drop = FALSE]
     
     Cd.c_b <- Rdb - Rdc %*% solve(Rc) %*% Rcb
     
     Ryx <- cov2cor(rbind( cbind(Rb, t(Cd.c_b)), cbind(Cd.c_b, Cd.c) ))
     
-    Rbc <- bigR[x = setB, y = setC]
+    Rbc <- bigR[x = setB, y = setC, drop = FALSE]
     
     Cb.c <- Rb - Rbc %*% solve(Rc) %*% t(Rbc) 
     
@@ -168,26 +168,26 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
       
       type <- 'Bipartial'
       
-      Rd  <- bigR[x = setD, y = setD]
-      Rc  <- bigR[x = setC, y = setC]
-      Rdc <- bigR[x = setD, y = setC]
+      Rd  <- bigR[x = setD, y = setD, drop = FALSE]
+      Rc  <- bigR[x = setC, y = setC, drop = FALSE]
+      Rdc <- bigR[x = setD, y = setC, drop = FALSE]
       
       Cd.c <- Rd - Rdc %*% solve(Rc) %*% t(Rdc)
       
-      Rb  <- bigR[x = setB, y = setB]
-      Ra  <- bigR[x = setA, y = setA]
-      Rba <- bigR[x = setB, y = setA]
+      Rb  <- bigR[x = setB, y = setB, drop = FALSE]
+      Ra  <- bigR[x = setA, y = setA, drop = FALSE]
+      Rba <- bigR[x = setB, y = setA, drop = FALSE]
       
       Cb.a <- Rb - Rba %*% solve(Ra) %*% t(Rba)
       
-      Rdb <- bigR[x = setD, y = setB]
-      Rcb <- bigR[x = setC, y = setB]
-      Rcb <- bigR[x = setB, y = setC] # this version of Rcb works
+      Rdb <- bigR[x = setD, y = setB, drop = FALSE]
+      Rcb <- bigR[x = setC, y = setB, drop = FALSE]
+      Rcb <- bigR[x = setB, y = setC, drop = FALSE] # this version of Rcb works
       
-      Rda <- bigR[x = setD, y = setA]
-      Rab <- bigR[x = setA, y = setB]
-      Rca <- bigR[x = setC, y = setA]
-      Rca <- bigR[x = setA, y = setC] # this version of Rca works
+      Rda <- bigR[x = setD, y = setA, drop = FALSE]
+      Rab <- bigR[x = setA, y = setB, drop = FALSE]
+      Rca <- bigR[x = setC, y = setA, drop = FALSE]
+      Rca <- bigR[x = setA, y = setC, drop = FALSE] # this version of Rca works
       
       Cd.c_b.a <- Rdb - Rdc %*% solve(Rc) %*% t(Rcb) - Rda %*% solve(Ra) %*% Rab +
         Rdc %*% solve(Rc) %*% t(Rca) %*% solve(Ra) %*% Rab
@@ -196,12 +196,12 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
       
       H <- Cd.c_b.a %*% solve(Cb.a) %*% t(Cd.c_b.a)
       
-      Rdab <- bigR[x = setD, y = c(setA, setB)]
-      Rcab <- bigR[x = setC, y = c(setA, setB)]
+      Rdab <- bigR[x = setD, y = c(setA, setB), drop = FALSE]
+      Rcab <- bigR[x = setC, y = c(setA, setB), drop = FALSE]
       
       Cdc.ab <- Rdab - Rdc %*% solve(Rc) %*% Rcab
       
-      RAB <- bigR[x = c(setA, setB), y = c(setA, setB)]
+      RAB <- bigR[x = c(setA, setB), y = c(setA, setB), drop = FALSE]
       
       E <- Cd.c - (Cdc.ab) %*% solve((RAB)) %*% t(Cdc.ab)
       
@@ -215,11 +215,11 @@ SET_CORRELATION <- function(data, IVs, DVs, IV_covars=NULL, DV_covars=NULL,
   ka <- length(setA)
   kc <- length(setC)
   
-  Rxx <- Ryx[1:kx,1:kx] 
+  Rxx <- Ryx[1:kx,1:kx, drop = FALSE] 
   
-  Ryy <- Ryx[(kx+1):ncol(Ryx),(kx+1):ncol(Ryx)] 
+  Ryy <- Ryx[(kx+1):ncol(Ryx),(kx+1):ncol(Ryx), drop = FALSE] 
   
-  Rx_y <- Ryx[1:kx,(kx+1):ncol(Ryx)]
+  Rx_y <- Ryx[1:kx,(kx+1):ncol(Ryx), drop = FALSE]
   
   
   R_square <- 1 - ( det(Ryx) / (det(Ryy) * det(Rxx)) )
