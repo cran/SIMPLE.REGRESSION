@@ -13,6 +13,7 @@ Hoboken, NJ: Wiley.
 \examples{
 head(data_Meyers_2013)
 \donttest{
+# for p. 263
 LOGISTIC_REGRESSION(data= data_Meyers_2013, DV='graduated', forced= c('sex','family_encouragement'))
 }
 }

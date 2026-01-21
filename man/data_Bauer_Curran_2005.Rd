@@ -13,6 +13,7 @@ Research, 40(3),} 373-400.
 \examples{
 head(data_Bauer_Curran_2005)
 \donttest{
+# for Bauer & Curran, 2005, p. 395
 HSBmod <-nlme::lme(MathAch ~ Sector + CSES + CSES:Sector,
                    data = data_Bauer_Curran_2005, 
                    random = ~1 + CSES|School, method = "ML") 

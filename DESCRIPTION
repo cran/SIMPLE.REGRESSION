@@ -1,8 +1,8 @@
 Package: SIMPLE.REGRESSION
 Type: Package
 Title: OLS, Moderated, Logistic, and Count Regressions Made Simple
-Version: 0.2.8
-Date: 2025-11-19
+Version: 0.3.1
+Date: 2026-01-19
 Authors@R: person(given = c("Brian", "P."), 
                   family = "O'Connor", 
                   role =c("aut","cre"), 
@@ -30,6 +30,6 @@ LazyLoad: yes
 LazyData: yes
 License: GPL (>= 2)
 NeedsCompilation: no
-Packaged: 2025-11-19 09:26:40 UTC; brianoconnor
+Packaged: 2026-01-21 10:58:04 UTC; brianoconnor
 Repository: CRAN
-Date/Publication: 2025-11-19 09:50:02 UTC
+Date/Publication: 2026-01-21 11:50:09 UTC

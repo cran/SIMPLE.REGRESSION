@@ -144,10 +144,7 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
     tcrit <- qt(0.975, model$fixDF$X[1])
     
     # construct the quadratic equation
-    # a <- tcrit^2 * S[4,4] - B[4]^2
-    # b <- 2 * (tcrit^2 * S[2,4] - B[2]*B[4])
-    # c <- tcrit^2 * S[2,2] - B[2]^2
-    
+
     a <- tcrit^2 * S[PROD,PROD] - B[PROD]^2
     b <- 2 * (tcrit^2 * S[IV,PROD] - B[IV]*B[PROD])
     c <- tcrit^2 * S[IV,IV] - B[IV]^2
@@ -166,13 +163,6 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
     CI.L <- SimpleSlope - tcrit*StdError  
     CI.U <- SimpleSlope + tcrit*StdError  
     JN.data <- data.frame(SimpleSlope, CI.L, CI.U, MODvalues, StdError)
-    
-    # # data for plot
-    # SimpleSlope <- B[2]+(B[4]*MODvalues)
-    # StdError <- sqrt((S[2,2])+(MODvalues^2*S[4,4])+(2*MODvalues*S[2,4]) )   
-    # CI.L <- SimpleSlope - tcrit*StdError  
-    # CI.U <- SimpleSlope + tcrit*StdError  
-    # JN.data <- data.frame(SimpleSlope, CI.L, CI.U, MODvalues, StdError)
     
     message('\n\nJohnson-Neyman regions of significance interval:')  
     message('\n   The slopes for ',IV,' predicting ',DV,' are significant when ',MOD)
@@ -197,9 +187,7 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
   }
   
   
-  
-  
-  
+
   
   if (!is.null(JN.data)) {
     
@@ -209,8 +197,6 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
     
     if (is.null(plot_title))   plot_title <- c(paste("Simple Slopes of",IV,"on",DV,"by",MOD))
     
-    # c("Simple Slopes of ",IV,"on",paste(DV," by ",MOD,sep=""))
-    
     if (is.null(legend_label))  legend_label <- 'Simple Slopes'
     
     ylimMIN <- min(JN.data[,1:3])
@@ -219,9 +205,6 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
     MOD_min <- min(JN.data$MODvalues)
     MOD_max <- max(JN.data$MODvalues)
     
-    # xlimMIN <- min(JN.data[,'MODvalues'])
-    # xlimMAX <- max(JN.data[,'MODvalues'])
-    
     plot(JN.data$MODvalues, JN.data$SimpleSlope, type='l', lty=1, col = "red", lwd = 2, cex.lab=1.3, 
          xlab=Xaxis_label, 
          ylab=Yaxis_label, 
@@ -229,11 +212,6 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
          ylim=c(ylimMIN,ylimMAX) )
     
     # placing grey rectangle for region of NON sig	   
-    # if (ros[1] < MOD_min) Xboxmin <- MOD_min-MOD_min-MOD_min # to make sure the box starts at the y axis
-    # if (ros[1] > MOD_min) Xboxmin <- 	ros[1]
-    # if (ros[2] > MOD_max) Xboxmax <- MOD_max+MOD_max+MOD_max # to make sure the box ends at the left of plot
-    # if (ros[2] < MOD_max) Xboxmax <- 	ros[2]
-    
     if (ros[1] < MOD_min) Xboxmin <- MOD_min - abs(MOD_min) # to make sure the box starts at the y axis, if so
     if (ros[1] > MOD_min) Xboxmin <- ros[1]
     if (ros[2] > MOD_max) Xboxmax <- MOD_max + abs(MOD_max) # to make sure the box ends at the left of plot, if so
@@ -274,7 +252,4 @@ REGIONS_OF_SIGNIFICANCE <- function(model,
     
     return(invisible(ROSoutput))
   }	
-  
-  #JN.data$MODvalues, JN.data$SimpleSlope, JN.data$CI.L, JN.data$CI.U
-  
 }

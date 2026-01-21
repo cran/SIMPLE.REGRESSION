@@ -88,13 +88,15 @@
 \examples{
 # C, but no X variables
 PARTIAL_COR(data = data_DeLeo_2013, 
-            Y = c('Problematic_Internet_Use','Tobacco_Use','Alcohol_Use','Illicit_Drug_Use'), 
+            Y = c('Problematic_Internet_Use','Tobacco_Use',
+                  'Alcohol_Use','Illicit_Drug_Use'), 
             C = c('Age','Parents_Income'), 
             X = NULL)
 
 # X, but no C variables
 PARTIAL_COR(data = data_DeLeo_2013, 
-            Y = c('Problematic_Internet_Use','Tobacco_Use','Alcohol_Use','Illicit_Drug_Use'), 
+            Y = c('Problematic_Internet_Use','Tobacco_Use',
+                  'Alcohol_Use','Illicit_Drug_Use'), 
             C = NULL, 
             X = c('Impulsivity','Social_Interaction_Anxiety',
                   'Social_Support','Intolerance_of_Deviance','Family_Morals',
@@ -102,7 +104,8 @@ PARTIAL_COR(data = data_DeLeo_2013,
 
 # both X & C variables
 PARTIAL_COR(data = data_DeLeo_2013, 
-            Y = c('Problematic_Internet_Use','Tobacco_Use','Alcohol_Use','Illicit_Drug_Use'), 
+            Y = c('Problematic_Internet_Use','Tobacco_Use',
+                  'Alcohol_Use','Illicit_Drug_Use'), 
             C = c('Age','Parents_Income'), 
             X = c('Impulsivity','Social_Interaction_Anxiety',
                   'Social_Support','Intolerance_of_Deviance','Family_Morals',

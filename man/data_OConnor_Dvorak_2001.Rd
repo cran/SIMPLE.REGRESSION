@@ -16,10 +16,11 @@ and adolescent problems: A search for personality-environment interactions.
 \examples{
 head(data_OConnor_Dvorak_2001)
 \donttest{
+# for O'Connor & Dvorak, 2001, p. 17; with numeric values for IV_range & MOD_levels='AikenWest'       
 mharsh_agg <- 
   MODERATED_REGRESSION(data=data_OConnor_Dvorak_2001, DV='Aggressive_Behavior',
                        IV='Maternal_Harshness', IV_range=c(1,7.7), 
-                       MOD='Resiliency',MOD_levels='AikenWest', 
+                       MOD='Resiliency', MOD_levels='AikenWest', 
                        quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                        center = FALSE,  
                        plot_type = 'interaction', 

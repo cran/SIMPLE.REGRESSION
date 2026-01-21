@@ -18,8 +18,9 @@ head(data_Cohen_Aiken_West_2003_9)
 MODERATED_REGRESSION(data=data_Cohen_Aiken_West_2003_9, DV='SALARY',
                      IV='PUB', IV_range='tumble',
                      MOD='DEPART_f', MOD_type = 'factor', MOD_levels='AikenWest', 
+                     MOD_reflevel = 'psychology',
                      quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                      center = TRUE,  
-                     plot_type = 'regions') 
+                     plot_type = 'interaction') 
 }
 }

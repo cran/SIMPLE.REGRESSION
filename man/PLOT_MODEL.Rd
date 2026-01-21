@@ -4,7 +4,7 @@
 \description{Plots predicted values of the outcome variable for specified levels 
 of predictor variables for OLS_REGRESSION, MODERATED_REGRESSION, 
 LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
-\usage{PLOT_MODEL(model, 
+\usage{PLOT_MODEL(modobject, 
            IV_focal_1, IV_focal_1_values=NULL, 
            IV_focal_2=NULL, IV_focal_2_values=NULL, 
            IVs_nonfocal_values = NULL,
@@ -17,7 +17,7 @@ LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
            verbose=TRUE)
 }
 \arguments{
-  \item{model}{
+  \item{modobject}{
   \code{}The returned output from the OLS_REGRESSION, MODERATED_REGRESSION, 
   LOGISTIC_REGRESSION, or COUNT_REGRESSION functions in this package.}
 
@@ -110,10 +110,6 @@ LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.}
   TRUE (default) or FALSE}
 }
 \details{
-Plots predicted values of the outcome variable for specified levels 
-of predictor variables for OLS_REGRESSION, MODERATED_REGRESSION, 
-LOGISTIC_REGRESSION, and COUNT_REGRESSION models from this package.
-
 A plot with both IV_focal_1 and IV_focal_2 predictor variables will look like an
 interaction plot. But it is only a true interaction plot if the required product
 term(s) was entered as a predictor when the model was created.
@@ -128,7 +124,7 @@ OLS_REGRESSION(data=data_Green_Salkind_2014, DV='injury',
                hierarchical = list( step1=c('age','quads','gluts','abdoms'), 
                                     step2=c('arms','grip')) )
 
-PLOT_MODEL(model = ols_GS, 
+PLOT_MODEL(modobject = ols_GS, 
            IV_focal_1 = 'gluts', IV_focal_1_values=NULL,
            IV_focal_2 = 'age', IV_focal_2_values=NULL, 
            IVs_nonfocal_values = NULL,
@@ -144,7 +140,7 @@ MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden', MOD=
                      COVARS='depression', 
                      plot_type = 'interaction', DV_range = c(1,1.25)) 
                      
-PLOT_MODEL(model = ols_LW, 
+PLOT_MODEL(modobject = ols_LW, 
            IV_focal_1 = 'burden', IV_focal_1_values=NULL,
            IV_focal_2 = 'belong_thwarted', IV_focal_2_values=NULL, 
            bootstrap=TRUE, N_sims=100, CI_level=95) 
@@ -153,21 +149,20 @@ logmod_Meyers <-
   LOGISTIC_REGRESSION(data = data_Meyers_2013, DV='graduated', 
                       forced = c('sex','family_encouragement')) 
 
-PLOT_MODEL(model = logmod_Meyers, 
+PLOT_MODEL(modobject = logmod_Meyers, 
            IV_focal_1 = 'family_encouragement', IV_focal_1_values=NULL,
            IV_focal_2=NULL, IV_focal_2_values=NULL, 
            bootstrap=FALSE, N_sims=100, CI_level=95) 
            
 pois_Krem <-
   COUNT_REGRESSION(data=data_Kremelburg_2011, DV='OVRJOYED', forced=NULL, 
-                   hierarchical= list( step1=c('AGE', 'SEX_factor'), 
-                                       step2=c('EDUC','REALRINC','DEGREE')) )
+                   hierarchical= list(step1=c('AGE', 'female'), 
+                                      step2=c('EDUC','REALRINC','DEGREE')) )
 
-PLOT_MODEL(model = pois_Krem, 
+PLOT_MODEL(modobject = pois_Krem, 
            IV_focal_1 = 'AGE', 
            IV_focal_2 = 'DEGREE',
-           IVs_nonfocal_values = list( EDUC = 5, SEX_factor = '2'),
+           IVs_nonfocal_values = list(EDUC = 5, female = '2'),
            bootstrap=FALSE, N_sims=100, CI_level=95) 
-           
 }
 }

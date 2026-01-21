@@ -1,13 +1,14 @@
 
 
 
-LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
+LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL, formula=NULL,
                                  ref_category = NULL,
                                  family = 'binomial',
-                                 plot_type = 'residuals',
                                  CI_level = 95,
-                                 MCMC = FALSE,
-                                 Nsamples = 4000,
+                                 MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                                     thin = 1, burnin = 1000, 
+                                                     HDI_plot_est_type = 'standardized'),
+                                 plot_type = 'residuals',
                                  verbose=TRUE ) {
   
   "<-<-" <- NULL   # need this or else get "no visible global function definition for '<-<-' " on R CMD check
@@ -18,10 +19,19 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     message('\nProbability Distribution: ', family)
   }
   
+  if (!is.null(formula)) {
+    formula_vars <- formula_check(formula=formula, data = data)
+    DV <- formula_vars$DV
+    forced <- formula_vars$forced
+    formule <- formula_vars$formule
+    hierarchical <- NULL
+  }
+  
   if (!is.null(forced))  {
     donnes <- data[,c(DV,forced)]	
     if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
-    formMAIN <- as.formula(paste(DV, paste(forced, collapse=" + "), sep=" ~ "))
+    if (is.null(formula)) 
+     formule <- as.formula(paste(DV, paste(forced, collapse=" + "), sep=" ~ "))
   }
   
   if (!is.null(hierarchical))  {
@@ -43,7 +53,7 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   if (!is.null(hierarchical))  allIVnoms <- c(allIVnoms, unlist(hierarchical) )
   allIVnoms <- allIVnoms[-1]
   
-  donnesMOD <- donnes[c(DV,allIVnoms)]  # a version of donnes that contains only the variables in the analyses
+  donnes <- donnes[c(DV,allIVnoms)]  # a version of donnes that contains only the variables in the analyses
   
   
   # convert DV to a factor, if it isn't already one
@@ -55,121 +65,52 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   # factor (when the first level denotes failure and all others success) or as a 
   # two-column matrix with the columns giving the numbers of successes and failures
   
-  # convert DV to factor if it is non numeric & has 2 levels
-  if (is.factor(donnesMOD[,DV])) {
+  # if DV is character, convert it to a factor
+    if (is.character(donnes[,DV])) {
+      message('\nThe DV is a character variable. It will be converted into a factor.\n')
+      donnes[,DV] <- as.factor(donnes[,DV])
+    }
+  
+  # if DV is a factor, confirm that it has 2 levels
+  if (is.factor(donnes[,DV])) {
     if (verbose) {
-      if (length(levels(donnesMOD[,DV])) == 2) 
+      if (length(levels(donnes[,DV])) == 2) 
         message('\n\nThe DV in data is a factor with two levels.')
-      if (length(levels(donnesMOD[,DV])) > 2) 
-        message('\n\nThe DV in data has more than 2 levels. The analyses cannot be performed.')
+      if (length(levels(donnes[,DV])) > 2) 
+        message('\n\nThe DV in data is a factor with more than 2 levels. Expect errors.')
     }
   }
-  if (!is.factor(donnesMOD[,DV])) {
-    donnesMOD[,DV] <- factor(donnesMOD[,DV])
+  
+  # if DV is not a factor, convert it to a factor with 2 levels
+  if (!is.factor(donnes[,DV])) {
+    donnes[,DV] <- factor(donnes[,DV])
     if (verbose) {
-      if (length(levels(donnesMOD[,DV])) == 2) 
-        message('\n\nThe DV in data is non numeric and has been converted to a factor with two levels.')
-      if (length(levels(donnesMOD[,DV])) > 2) {
-        message('\n\nThe DV in data has been converted to a factor,')
-        message('\nbut there are > 2 levels. The analyses cannot be performed.')
+      if (length(levels(donnes[,DV])) == 2) 
+        message('\n\nThe DV has been converted to a factor with two levels.')
+      if (length(levels(donnes[,DV])) > 2) {
+        message('\n\nThe DV has been converted to a factor,')
+        message('\nbut there are > 2 levels. Expect errors.')
       }
     }		
   }
   
+  if (!is.null(ref_category)) donnes[,DV] <- relevel(donnes[,DV], ref=ref_category)
+  
+  if (is.null(ref_category))  ref_category <- levels(donnes[,DV])[1]   
+  
   if (verbose) {
     message('\nDV frequencies:')
-    print(table(donnesMOD[,DV]))
-  }
-  
-  if (!is.null(ref_category))  donnesMOD[,DV] <- relevel(donnesMOD[,DV], ref = ref_category)
-  
-  if ( is.null(ref_category))  ref_category <- levels(donnesMOD[,DV])[1]   
-  
-  if (verbose) 
+    print(table(donnes[,DV]))
     message('\nThe reference (baseline) category for the DV is: ', ref_category)
-  
-  
-  # converting character IVs to factors
-  for (lupe in 1:length(allIVnoms)) {
-    if (is.character(donnesMOD[,allIVnoms[lupe]])) {
-      message('\n', allIVnoms[lupe], ' is a character variable. It will be converted into a factor.\n')
-      donnesMOD[,allIVnoms[lupe]] <- as.factor(donnesMOD[,allIVnoms[lupe]])
-    }
-  }
-  
-  # check if all IVs are either numeric or factors
-  IVclasses <- sapply(donnesMOD[,allIVnoms], class)
-  if (!all(IVclasses == 'numeric' | IVclasses == 'integer' | IVclasses == 'factor')) {
-    message('\n The following variables are not numeric, integers, or factors. Expect errors.')
-    names(
-      IVclasses[IVclasses != 'numeric' &  IVclasses != 'integer' & IVclasses != 'factor' ])
   }
   
   
-  # descriptives
-  if (verbose) {
-    # descriptives for numeric variables
-    donnesNUM <- donnesMOD[,allIVnoms]
-    donnesNUM <- donnesNUM[sapply(donnesNUM,is.numeric)] # selecting only numeric variables
-    if (ncol(donnesNUM) != 0) {
-      minmax <- t(apply(donnesNUM, 2, range))
-      descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), 
-                          Min=minmax[,1], Max=minmax[,2]) 
-      message('\n\nDescriptive statistics for the numeric variables:\n')
-      print(round(descs,2), print.gap=4)
-    }
-    
-    # frequencies for factors
-    donnesFAC <- donnesMOD[,allIVnoms]
-    donnesFAC <- donnesFAC[sapply(donnesFAC,is.factor)] # selecting only factor variables
-    if (ncol(donnesFAC) != 0) {
-      message('\n\nCategory frequencies for the factor variables:\n')
-      print(apply((donnesFAC), 2, table))
-    }
-    
-    rm(donnesNUM, donnesFAC)
-  }
+  # clean up IV factors, contrasts
+  IV_type_cleanup(donnes, allIVnoms) 
   
   
-  # test if factor variables have contrasts; if not, add contrasts with names
-  IV_factors <- IVclasses[IVclasses == 'factor' ]
-  if (length(IV_factors) > 0) {
-    for (lupe in 1:length(IV_factors)) {
-      
-      if (is.null(attr( donnesMOD[,names(IV_factors[lupe])], "contrasts" ))) {
-        
-        fac_levels <- levels(donnesMOD[,names(IV_factors[lupe])])
-        
-        # print(fac_levels)
-        # print(lupe)
-        
-        # The baseline group is based on alphabetic/numerical order, unless the terms "control"
-        # or "Control" or "baseline" or "Baseline" appear in the names of a factor
-        # level, in which case that factor level is used as the dummy codes baseline.
-        if (length(grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)) > 0) {
-          base_level <- grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)
-        } else {
-          base_level <- order(fac_levels, decreasing = FALSE, na.last = TRUE)[1]
-        }
-        
-        custom_contrasts <- contr.treatment(length(fac_levels), base = base_level)
-        
-        colnames(custom_contrasts) <-
-          better_contrast_noms(contrasts(donnesMOD[,names(IV_factors[lupe])]))
-        
-        # apply the contrast matrix to the factor variable
-        contrasts(donnesMOD[,names(IV_factors[lupe])]) <- custom_contrasts
-      }
-    }
-  }
-  
-  # display the contrasts for factors
-  if (verbose & length(IV_factors) > 0) {
-    for (lupe in 1:length(IV_factors)) {
-      message('\nThe contrasts for ', names(IV_factors[lupe]), ' are:\n')
-      print(contrasts(donnesMOD[,names(IV_factors[lupe])]), print.gap=4)
-    }
-  }
+  # predictor descriptives
+  if (verbose)  descriptives(donnes, allIVnoms)
   
   
   
@@ -177,7 +118,7 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   
   # NULL model
   formNULL <- as.formula(paste(DV, 1, sep=" ~ "))
-  modelNULL <- glm(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE, family = family)
+  modelNULL <- glm(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE, family = family)
   modelNULLsum <- summary(modelNULL)
   null_dev <- data.frame(modelNULL$deviance); colnames(null_dev) <- 'Deviance'
   
@@ -189,7 +130,7 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   # Classification Table -- NULL model
   probs_NULL <- fitted(modelNULL)
   classif_tab_NULL <- cbind( c(0,0), table(modelNULL$y, probs_NULL > .5) )
-  colnames(classif_tab_NULL) <- rownames(classif_tab_NULL) <- levels(donnesMOD[,DV])
+  colnames(classif_tab_NULL) <- rownames(classif_tab_NULL) <- levels(donnes[,DV])
   classif_tab_NULL <- cbind(classif_tab_NULL, c(0,100))
   colnames(classif_tab_NULL)[3] <- 'Percent_Correct'
   names(dimnames(classif_tab_NULL)) <- c('Observed', 'Predicted')
@@ -220,33 +161,31 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   for (lupe in 1:length(hierarchical)) {
     
     # keeping info on previous model in lupe for Rsq change stats
-    if (lupe > 1) {
-      prevModel <- modelMAIN
-      # prevRsq   <- RsqMAIN
-    }
-    
+    if (lupe > 1)  prevModel <- model
+
     if (verbose) message('\n\n\nBlock ', lupe)	
     
-    if (lupe==1)  preds <- unlist(hierarchical[1])
+    if (lupe == 1)  preds <- unlist(hierarchical[1])
     
     if (lupe > 1) preds <- c(preds, unlist(hierarchical[lupe]))
     
-    donnesH <- donnesMOD[,c(DV,preds)]
+    # noms_list <- list(DV=DV, IV=preds)
     
-    formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
-    
-    modelMAIN <- glm(formMAIN, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
-    modelMAINsum <- summary(modelMAIN, correlation=TRUE)
+    if (is.null(formula))  
+      formule <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ ")) 
+
+    model <- glm(formule, data = donnes[,c(DV,preds)], model=TRUE, x=TRUE, y=TRUE, family = family)
+    modelsum <- summary(model, correlation=TRUE)
     
     # odds ratios
-    OR <- exp(modelMAIN$coefficients)
-    OR_CIs <- exp(confint.default(modelMAIN))
+    OR <- exp(model$coefficients)
+    OR_CIs <- exp(confint.default(model))
     
     # Omnibus Tests of Model Coefficients
-    # a <- anova(modelNULL, modelMAIN, test="Chisq")
+    # a <- anova(modelNULL, model, test="Chisq")
     if (verbose) {
       message('\n\nOmnibus Tests of Model Coefficients:\n')
-      print(anova(prevModel, modelMAIN, test="Chisq"))
+      print(anova(prevModel, model, test="Chisq"))
     }
     
     # Overdispersion
@@ -256,17 +195,17 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     # is much larger than 1.
     
     # # Overdispersion test based on the model deviance
-    # dispersion_ratio_dev <- modelMAIN$deviance / modelMAIN$df.residual
-    # p_deviance <-  1 - pchisq(modelMAIN$deviance, modelMAIN$df.residual)
+    # dispersion_ratio_dev <- model$deviance / model$df.residual
+    # p_deviance <-  1 - pchisq(model$deviance, model$df.residual)
     # message('\n\n\nOverdispersion test based on the model deviance:')
     # cat('\n    Dispersion Ratio: ', round(dispersion_ratio_dev,3),
-    #     '    Statistic = ', round(modelMAIN$deviance,3),
+    #     '    Statistic = ', round(model$deviance,3),
     #     '    p = ', round(p_deviance,5))
     
     # Overdispersion test based on the Pearson Chi-Square
-    X2_Pearson <- sum(residuals(modelMAIN, type = "pearson")^2)
-    dispersion_ratio_X2 <- X2_Pearson / modelMAIN$df.residual
-    p_X2 <- 1 - pchisq(X2_Pearson, modelMAIN$df.residual)
+    X2_Pearson <- sum(residuals(model, type = "pearson")^2)
+    dispersion_ratio_X2 <- X2_Pearson / model$df.residual
+    p_X2 <- 1 - pchisq(X2_Pearson, model$df.residual)
     if (verbose) {
       message('\n\nOverdispersion test:')
       cat('\n    Dispersion Ratio: ', round(dispersion_ratio_X2,3),
@@ -275,9 +214,9 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     }
     
     # Model Summary & Effect Sizes
-    model_dev <- modelMAIN$deviance 
-    null_dev <- modelMAIN$null.deviance 
-    model_N <- length(modelMAIN$fitted.values)
+    model_dev <- model$deviance 
+    null_dev <- model$null.deviance 
+    model_N <- length(model$fitted.values)
     Rsq_HS <-  1 - model_dev / null_dev
     Rsq_CS <- 1- exp (-(null_dev - model_dev) / model_N)
     Rsq_NG <- Rsq_CS / (1 - ( exp(-(null_dev / model_N))))
@@ -291,10 +230,10 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     }
     
     # Classification Table
-    probs <- fitted(modelMAIN)
-    classif_tab <- table(modelMAIN$y, probs > .5) 
+    probs <- fitted(model)
+    classif_tab <- table(model$y, probs > .5) 
     if (ncol(classif_tab) == 1)  classif_tab <- cbind( c(0,0), table(modelNULL$y, probs_NULL > .5) )
-    colnames(classif_tab) <- rownames(classif_tab) <- levels(donnesMOD[,DV])
+    colnames(classif_tab) <- rownames(classif_tab) <- levels(donnes[,DV])
     names(dimnames(classif_tab)) <- c('Observed', 'Predicted')
     
     if (verbose) {
@@ -303,47 +242,40 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       message('\nThe cut value for the classifications is .5\n')
     }
     
-    modelMAINsum$coefs <- cbind(modelMAINsum$coefficients, OR, OR_CIs)
-    colnames(modelMAINsum$coefs) <- c('B', 'SE', 'z', 'p', 'OR', 'OR ci_lb', 'OR ci_ub')
+    modelsum$coefs <- cbind(modelsum$coefficients, OR, OR_CIs)
+    colnames(modelsum$coefs) <- c('B', 'SE', 'z', 'p', 'OR', 'OR ci_lb', 'OR ci_ub')
     
     if (verbose) {
       message('\nVariables in the Equation:\n')
-      modelMAINsum$coefs <- round_boc(modelMAINsum$coefs, round_non_p = 3, round_p = 6) 
-      print(round_boc(modelMAINsum$coefs,3), print.gap=4)
+      modelsum$coefs <- round_boc(modelsum$coefs, round_non_p = 3, round_p = 6) 
+      print(round_boc(modelsum$coefs,3), print.gap=4)
     }
     
-    if (MCMC) {
+    MCMC_outp <- list(Bayes_HDIs = NULL, chains = NULL, autocorrels = NULL, SDs = NULL)
+    
+    if (MCMC_options$MCMC) {
       
       if (family == 'quasibinomial') {
         message("\n\nFamily = 'quasibinomial' analyses are currently not possible for")
         message("the MCMC analyses. family = 'binomial' will therefore be used instead.\n")
       }
-      
-      # rstanarm: All outcome values must be 0 or 1 for Bernoulli models
-      
-      # is.numeric(donnesH[DV])
-      # is.factor(donnesH[DV])
-      # is.character(donnesH[DV])
-      
-      # data_Kremelburg_2011$OCCTRAIN <- as.numeric(data_Kremelburg_2011$OCCTRAIN)
-      
-      MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "binomial",
-                                     refresh = 0, algorithm="sampling", iter = Nsamples)
-      
-      # MCMC_mod_sum <- summary(MCMC_mod, digits=3, probs=c(.025, .975))
-      
-      MCMC_mod_coefs <- cbind(coef(MCMC_mod), 
-                              rstanarm::posterior_interval(MCMC_mod, prob= CI_level * .01))
-      
-      MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
-      
-      colnames(MCMC_mod_coefs) <- c('B','B_ci_lb','B_ci_ub','OR','OR_ci_lb','OR_ci_ub')
-      
-      # prior_summary(MCMC_mod)
-      
+
+      MCMC_outp <- Bayes_HDIs_reg_preds(formule, data = donnes[,c(DV,preds)], CI_level,  
+                                        MCMC_options, model_type = 'LOGISTIC')  # , noms_list,
+        
       if (verbose) {
-        message('\n\nCoefficients from Bayesian MCMC analyses:\n')
-        print(round_boc(MCMC_mod_coefs,3), print.gap=4)
+        message('\n\nBayesian MCMC chains:')
+        message('\n    Number iterations (samples): ', MCMC_options$Nsamples)
+        message('\n    Thinning interval:  ', MCMC_options$thin)
+        message('\n    Burn-in period:  ', MCMC_options$burnin)
+        message('\n    Final chain length (# of samples): ', nrow(MCMC_outp$chains))
+        message('\n    The priors were the default rstanarm::stan_glm function priors')
+        
+        message('\n\nAutocorrelations for the MCMC chains:\n')
+        print(round(MCMC_outp$autocorrels,3), print.gap=4)
+        
+        message('\n\nBayesian HDIs for the raw coefficients & the corresponding odds ratios:\n')
+        print(round_boc(MCMC_outp$Bayes_HDIs, round_non_p = 2, round_p = 5), print.gap=4)
       }
     }
     
@@ -355,9 +287,9 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
         pred_final <- preds[lupepreds]   
         pred_others <- preds[! preds %in% c(pred_final)]
         formM1 <- as.formula(paste(DV, paste(pred_others, collapse=" + "), sep=" ~ "))
-        M1 <- glm(formM1, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
+        M1 <- glm(formM1, data = donnes[,c(DV,preds)], model=TRUE, x=TRUE, y=TRUE, family = family)
         formM2 <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
-        M2 <- glm(formM2, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
+        M2 <- glm(formM2, data = donnes[,c(DV,preds)], model=TRUE, x=TRUE, y=TRUE, family = family)
         # print(lmtest::lrtest(M1, M2))
         aa <- anova(M1, M2, test="Chisq")
         LR_tests <- rbind(LR_tests, c(aa$Deviance[2], aa$Df[2], aa$"Pr(>Chi)"[2]))
@@ -373,73 +305,70 @@ LOGISTIC_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     if (verbose) {
       message('\n\nCorrelations of Parameter Estimates:\n')
-      print(round_boc(modelMAINsum$correlation,3), print.gap=4)
+      print(round_boc(modelsum$correlation,3), print.gap=4)
     }
     
-    modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
-    colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
+    modeldata <- data.frame(model$y, model$x[,2:ncol(model$x)])
+    colnames(modeldata) <- c(DV,colnames(model$x)[2:ncol(model$x)])
     
-    modeldata$predicted <- modelMAIN$fitted.values
+    modeldata$predicted <- model$fitted.values
     
     # casewise diagnostics
-    modeldata$residuals_raw <-          resid(modelMAIN, type='response')
-    modeldata$residuals_pearson <-      resid(modelMAIN, type='pearson')
-    modeldata$residuals_pearson_std <-  rstandard(modelMAIN, type='pearson')
-    modeldata$residuals_deviance <-     resid(modelMAIN, type='deviance')
-    modeldata$residuals_deviance_std <- rstandard(modelMAIN, type='deviance')
-    modeldata$residuals_quantile <-     quantile_residuals(modelMAIN)
+    modeldata$residuals_raw <-          resid(model, type='response')
+    modeldata$residuals_pearson <-      resid(model, type='pearson')
+    modeldata$residuals_pearson_std <-  rstandard(model, type='pearson')
+    modeldata$residuals_deviance <-     resid(model, type='deviance')
+    modeldata$residuals_deviance_std <- rstandard(model, type='deviance')
+    modeldata$residuals_quantile <-     quantile_residuals(model)
     
-    modeldata$cooks_distance <- cooks.distance(modelMAIN)
-    modeldata$dfbeta <- dfbeta(modelMAIN)
-    modeldata$dffit <- dffits(modelMAIN)
-    modeldata$leverage <- hatvalues(modelMAIN)
-    modeldata$covariance_ratios <- covratio(modelMAIN)
+    modeldata$cooks_distance <- cooks.distance(model)
+    modeldata$dfbeta <- dfbeta(model)
+    modeldata$dffit <- dffits(model)
+    modeldata$leverage <- hatvalues(model)
+    modeldata$covariance_ratios <- covratio(model)
     
-    collin_diags <- Collinearity(model.matrix(modelMAIN), verbose=FALSE)
+    collin_diags <- Collinearity(model.matrix(model), verbose=FALSE)
   }
   
   
   if (verbose) {			
     message('\n\nPredictor variable correlation matrix:\n')
-    #		print(round(cor(modeldata[,c(DV,preds)]),3), print.gap=4)	
+    print(round(cor(modeldata[,c(DV,names(model$coefficients)[-1])]),3), print.gap=4)		
     
-    print(round(cor(modeldata[,c(DV,names(modelMAIN$coefficients)[-1])]),3), print.gap=4)		
-    
-    message('\n\nCollinearity Diagnostics:\n')
-    print(round(collin_diags$VIFtol, 3), print.gap=4)
-    message('\nThe mean Variance Inflation Factor = ', round(mean(collin_diags$VIFtol[,2]),3))
-    message('\nMulticollinearity is said to exist when VIF values are > 5, or when Tolerance values')
-    message('are < 0.1. Multicollinearity may be biasing a regression model, and there is reason')
-    message('for serious concern, when VIF values are greater than 10.\n\n')
-    print(round(collin_diags$CondInd,3), print.gap=4)
-    message('\nThe coefficients for the Intercept and for the predictors are the Variance Proportions.')
-    message('\nEigenvalues that differ greatly in size suggest multicollinearity. Multicollinearity is')
-    message('said to exist when the largest condition index is between 10 and 30, and evidence for')
-    message('the problem is strong when the largest condition index is > 30. Multicollinearity is')
-    message('also said to exist when the Variance Proportions (in the same row) for two variables are')
-    message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
-  }      
+    message('\n\nCollinearity Diagnostics:')
+    VIFtol_messages(collin_diags$VIFtol[,2])
+    CondInd_messages(collin_diags$CondInd)
+  }     
   
   
-  # add, if any, factor variables in data to modeldata 
+  # add, if any, factor variables in data to modeldata
   # (because lm changes names & types and the original variables are needed for PLOTMODEL)
-  # factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
-  factor_variables <- list_xlevels <- names(modelMAIN$xlevels)
-  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnesMOD[,factor_variables]
+  # factor_variables <- names(model$model[sapply(model$model, is.factor)])
+  factor_variables <- list_xlevels <- names(model$xlevels)
+  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
   
   
-  output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum,
-                 modeldata=modeldata, coefs = modelMAINsum$coefs,
-                 collin_diags = collin_diags, family=family)
-  
+  output <- list(model=model, modelsum=modelsum,
+                 modeldata=modeldata, coefs = modelsum$coefs,
+                 collin_diags = collin_diags, family=family,
+                 chain_dat = MCMC_outp$chains,
+                 Bayes_HDIs = MCMC_outp$Bayes_HDIs)  #noms_list = noms_list)
+                
   
   if (plot_type == 'residuals') 
     
-    diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(8, 9, 10, 11))
+    diagnostics_plots(model=model, modeldata=modeldata, plot_diags_nums=c(8, 9, 10, 11))
   
   if (plot_type == 'diagnostics')
     
-    diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(12, 13, 14, 15))
+    diagnostics_plots(model=model, modeldata=modeldata, plot_diags_nums=c(12, 13, 14, 15))
+  
+  if (plot_type == 'Bayes_HDI' & MCMC_options$MCMC & !is.null(MCMC_outp$chain)) 
+    
+    Bayes_HDI_plot(chain_dat = MCMC_outp$chains, 
+                   Bayes_HDIs = MCMC_outp$Bayes_HDIs,
+                   CI_level = CI_level, # SDs = xx$SDs[c(preds)],
+                   HDI_plot_est_type = MCMC_options$HDI_plot_est_type)
   
   
   class(output) <- "LOGISTIC_REGRESSION"

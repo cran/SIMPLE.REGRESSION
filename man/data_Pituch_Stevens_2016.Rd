@@ -11,6 +11,7 @@ Pituch, K. A., & Stevens, J. P. (2016).
       	SAS and IBMs SPSS,} (6th ed.). Routledge.
 }
 \examples{
+# for p. 463
 LOGISTIC_REGRESSION(data = data_Pituch_Stevens_2016, DV='Health', 
                     forced= c('Treatment','Motivation'))
 }

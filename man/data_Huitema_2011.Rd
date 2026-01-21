@@ -13,7 +13,7 @@ for experiments, quasi-experiments, and single-case studies.} Hoboken, NJ: Wiley
 \examples{
 head(data_Huitema_2011)
 \donttest{
-# replicating results on p. 255 for the Johnson-Neyman technique for a categorical moderator
+# replicating results on p. 254 for the Johnson-Neyman technique for a categorical moderator
 MODERATED_REGRESSION(data=data_Huitema_2011, DV='Y', 
                      IV='X', IV_range='tumble',
                      MOD='D', MOD_type = 'factor',  

@@ -18,8 +18,10 @@ head(data_DeLeo_2013)
 # bipartial
 SET_CORRELATION(data=data_DeLeo_2013, 
                 IVs = c('Grade_Point_Average','Family_Morals','Social_Support',
-                        'Intolerance_of_Deviance','Impulsivity','Social_Interaction_Anxiety'), 
-                DVs = c('Problematic_Internet_Use','Tobacco_Use','Alcohol_Use','Illicit_Drug_Use'), 
+                        'Intolerance_of_Deviance','Impulsivity',
+                        'Social_Interaction_Anxiety'), 
+                DVs = c('Problematic_Internet_Use','Tobacco_Use','Alcohol_Use',
+                        'Illicit_Drug_Use'), 
                 IV_covars = c('Age','Parents_Income'), 
                 DV_covars = c('Gambling_Behavior','Unprotected_Sex'),
                 display_cormats=TRUE) }

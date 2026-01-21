@@ -2,13 +2,15 @@
 
 MODERATED_REGRESSION <- function (data, DV, IV, MOD,
                                   IV_type = 'numeric', IV_range='tumble',
-                                  MOD_type = 'numeric', MOD_levels='quantiles', MOD_range=NULL,
+                                  MOD_type = 'numeric', MOD_levels='quantiles', 
+                                  MOD_range=NULL, MOD_reflevel=NULL,
                                   quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                                   COVARS = NULL,
                                   center = TRUE,  
                                   CI_level = 95,
-                                  MCMC = FALSE,
-                                  Nsamples = 10000,
+                                  MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                                      thin = 1, burnin = 1000, 
+                                                      HDI_plot_est_type = 'raw'),
                                   plot_type = 'residuals', plot_title=NULL, DV_range=NULL,
                                   Xaxis_label=NULL, Yaxis_label=NULL, legend_label=NULL,
                                   JN_type = 'Huitema',
@@ -22,21 +24,42 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     message('\nThe IV or MOD arguments were NULL. Expect errors.\n')
   }
   
+  donnes <- data[,c(DV,IV,MOD,COVARS)]
+  
+  # if IV_type = 'factor' but the IV data are not a factor, then convert it to a factor
+  if (IV_type == 'factor' & !is.factor(donnes[,IV]))  donnes[,IV] <- factor(donnes[,IV])
+  
+  # if MOD_type = 'factor' but the MOD data are not a factor, then convert it to a factor
+  if (MOD_type == 'factor' & !is.factor(donnes[,MOD]))  donnes[,MOD] <- factor(donnes[,MOD])
+  
+  
+  # if IV_type = 'numeric' or 'integer' but the IV data are not numeric or integer, then convert it to a factor
+  if ( (IV_type == 'numeric' | IV_type == 'integer') &
+       (!is.numeric(donnes[,IV]) & !is.integer(donnes[,IV])) )  {
+    donnes[,IV] <- factor(donnes[,IV])
+    IV_type <- 'factor'
+    message('\nIV_type was specified as numeric but the IV data are not numeric, so it was converted to a factor')
+  }
+  
+  # if MOD_type = 'numeric' or 'integer' but the MOD data are not numeric or integer, then convert it to a factor
+  if ( (MOD_type == 'numeric' | MOD_type == 'integer') &
+       (!is.numeric(donnes[,MOD]) & !is.integer(donnes[,MOD])) )  {
+    donnes[,MOD] <- factor(donnes[,MOD])
+    MOD_type <- 'factor'
+    message('\nMOD_type was specified as numeric but the MOD data are not numeric, so it was converted to a factor')
+  }
+  
+  
+  # clean up IV, MOD, COVARS factors, contrasts
+  IV_type_cleanup(donnes, allIVnoms = c(IV, MOD, COVARS)) 
+  
+  
   if (is.numeric(IV_range)) {
     IV_range_user <- IV_range
     IV_range <- 'numeric'
   }
   
-  if (is.factor(data[,MOD]))  MOD_type <- 'factor'
-  
-  if (MOD_type == 'factor' & !is.factor(data[,MOD])) data[,MOD] <- factor(data[,MOD])
-  
-  donnes <- data[,c(DV,IV,MOD,COVARS)]
-  
   if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
-  
-  formMAIN <- as.formula(paste(DV, paste(c(IV,MOD,COVARS), collapse=" + "), sep=" ~ "))
-  
   
   if (NAflag) cat('\n\nCases with missing values were found and removed from the data matrix.\n\n')
   
@@ -49,35 +72,6 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   }
   
   
-  # IV_type
-  if (IV_type == 'numeric' & is.numeric(donnes[,IV])) IV_type <- 'numeric'
-  
-  # making IV a factor if it is non numeric & has 2 levels
-  if (!is.numeric(donnes[,IV])) {
-    if (is.factor(donnes[,IV])) {
-      if (length(levels(donnes[,IV])) == 2) 
-        message('\n\nThe IV in data is a factor with two levels.')
-      if (length(levels(donnes[,IV])) > 2) {
-        message('\n\nThe IV in data is a factor with > 2 levels.')
-        message('\n\nPlots cannot be produced. The analyses cannot be performed.')
-      }
-    }
-    if (!is.factor(donnes[,IV])) {
-      donnes[,IV] <- factor(donnes[,IV])
-      if (length(levels(donnes[,IV])) == 2) {
-        message('\n\nThe IV in data is non numeric and has been converted to a')
-        message('\nfactor with two levels.')
-      }
-      if (length(levels(donnes[,IV])) > 2) {
-        message('\n\nThe IV in data is non numeric, it has been converted to a')
-        message('\nfactor, but there are > 2 levels.')
-        message('\n\n Plots cannot be produced. The analyses cannot be performed.')
-      }		
-    }
-    IV_type <- 'factor'
-  }
-  
-  
   # centering, if requested
   if (center) {
     if (is.numeric(donnes[,IV]))   donnes[,IV]  <- donnes[,IV]  - mean(donnes[,IV])	
@@ -85,352 +79,153 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   }
   
   
-  # gathering all of the predictor variable names
-  allIVnoms <- c(IV, MOD)
-  if (!is.null(COVARS))  allIVnoms <- c(allIVnoms, COVARS)
-  
-  # a version of donnes that contains only the variables in the analyses
-  donnesRED <- donnes[c(DV,allIVnoms)]  
-  
+  # if MOD is a factor, set the baseline
+  if (is.factor(donnes[,MOD])) {
+    
+    # For factors in R, the baseline group is normally the first-appearing value  
+    # in the df. Instead, in the following code,
+    # (1) the MOD_reflevel, if provided, will be used as the baseline; or
+    # (2) if the terms "control" or "Control" or "baseline" or "Baseline" 
+    #     appear in the names of a factor level, then that factor level will be
+    #     used as the baseline; 
+    # (3) otherwise the baseline will be the earliest of the alphabetically-
+    #     ordered factor levels
+    
+    fac_levels <- levels(donnes[,MOD])
+    
+    if (!is.null(MOD_reflevel))  {
+      # test if MOD_reflevel is in fact one of the fac_levels
+      if ((MOD_reflevel %in% fac_levels) == FALSE) {
+        message('\n\nThe name provided on the MOD_reflevel argument is not one of the')
+        message('MOD factor levels. The default reference level will be used instead.\n')
+        MOD_reflevel <- NULL
+      } else {base_level <- MOD_reflevel}
+    }
+    
+    if (is.null(MOD_reflevel)) {
+      if (length(grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)) > 0) {
+        base_level <- grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)
+      } else {
+        base_level <- sort(fac_levels)[1]
+      }
+    }
+    
+    # levels(donnes[,MOD])
+    donnes[,MOD] <- relevel(donnes[,MOD], ref = base_level)
+    # levels(donnes[,MOD])
+  }
   
   # descriptives
-  if (verbose) {
-    # descriptives for numeric variables
-    donnesNUM <- donnes[sapply(donnesRED,is.numeric)] # selecting only numeric variables
-    if (ncol(donnesNUM) != 0) {
-      minmax <- t(apply(donnesNUM, 2, range))
-      descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), Min=minmax[,1], Max=minmax[,2]) 
-      message('\n\nDescriptive statistics for the numeric variables:\n')
-      print(round(descs,2), print.gap=4)
+  allIVnoms <- c(DV, IV, MOD)
+  if (!is.null(COVARS))  allIVnoms <- c(allIVnoms, COVARS)
+  if (verbose)  descriptives(donnes, allIVnoms)
+  
+  
+  for (lupe in 1:2) {
+    
+    if (lupe == 1)  prevRsq <- prevModel <- prevmod_lmBF <- NULL
+    
+    # keeping info on previous model, if there was one, for Rsq change stats
+    if (lupe > 1) {
+      prevModel <- xx$model
+      prevRsq   <- xx$Rsq
+      if (MCMC_options$MCMC) prevmod_lmBF <- xx$mod_lmBF
     }
     
-    # frequencies for factors
-    donnesFAC <- donnes[sapply(donnesRED,is.factor)] # selecting only factor variables
-    if (ncol(donnesFAC) != 0) {
-      message('\n\nCategory frequencies for the factor variables:\n')
-      print(apply((donnesFAC), 2, table))
+    message('\n\nBlock ', lupe, ':')	
+    
+    if (lupe == 1) {
+      
+      formule <- as.formula(paste(DV, paste(c(IV,MOD,COVARS), collapse=" + "), sep=" ~ "))
+      
+      # noms_list <- list(DV=DV, IV=IV, MOD=MOD, COVARS=COVARS)
+      
+      xx <- reg_stats_boc(formule = formule, data = donnes, CI_level = CI_level, 
+                          prevRsq = NULL, prevModel = NULL, prevmod_lmBF = NULL,
+                          MCMC_options = MCMC_options) #, noms_list=NULL) #noms_list)
+
+      if (verbose) {
+        
+        message('\n\nThe DV is: ', DV)
+        message('\nThe IV is: ', IV)
+        message('\nThe MOD is: ', MOD)
+        if (!is.null(COVARS))  message('\nThe covariates are: ', COVARS)
+        message('\n\nMultiple regression statistics for when the product term is not in the model:')
+        
+        resultats(xx)
+      }
     }
-    rm(donnesRED, donnesNUM, donnesFAC)
+    
+    if (lupe == 2) {
+      
+      prevModel <- xx$model
+      prevRsq   <- xx$Rsq
+      if (MCMC_options$MCMC) prevmod_lmBF <- xx$mod_lmBF
+
+      # the term names for IV 
+      if (IV_type != 'factor')  IV_terms <- IV
+      if (IV_type == 'factor')  {
+        formC <- as.formula(paste('~', IV, sep=" "))
+        IV_terms <- colnames(model.matrix(formC, data = donnes))[-1]
+      }
+      
+      # the term names for MOD 
+      if (MOD_type != 'factor')  MOD_terms <- MOD
+      if (MOD_type == 'factor')  {
+        formC <- as.formula(paste('~', MOD, sep=" "))
+        MOD_terms <- colnames(model.matrix(formC, data = donnes))[-1]
+      }
+      
+      # the term names for the COVARS 
+      COVARS_terms <- NULL
+      if (length(COVARS) > 0) {
+        for (lupe in 1:length(COVARS)) {
+          if (is.numeric(donnes[,COVARS[lupe]]) | 
+              is.integer(donnes[,COVARS[lupe]])) {
+            COVARS_terms <- c(COVARS_terms, COVARS[lupe])
+          } else { 
+            formC <- as.formula(paste('~', COVARS[lupe], sep=" "))
+            COVARS_terms <- c(COVARS_terms, colnames(model.matrix(formC, data = donnes))[-1]) }
+        }
+      }
+      
+      if (is.null(COVARS))
+        formXn <- as.formula(paste(DV, paste(IV, ' * ', MOD, sep = ""), sep=" ~ "))
+      
+      if (!is.null(COVARS))
+        formXn <- as.formula(paste(DV,   paste(
+          paste(IV, ' * ', MOD, sep = ""),
+          paste(COVARS, collapse=" + ", sep = ""), 
+          sep=' +'), sep=" ~ "))
+      
+      xx <- reg_stats_boc(formule = formXn, data = donnes, CI_level = CI_level, 
+                          prevRsq = NULL, prevModel = NULL, prevmod_lmBF = NULL,
+                          MCMC_options = MCMC_options) #, noms_list=NULL) #noms_list)
+      
+      PROD_terms <- setdiff( rownames(xx$partialRcoefs), c(IV, MOD_terms, COVARS_terms))
+      
+      # noms_list <- list(DV=DV, IV=IV, MOD_terms=MOD_terms, PROD_terms=PROD_terms, COVARS=COVARS)
+      
+      if (verbose) {
+        
+        message('\n\nThe DV is: ', DV)
+        message('\nThe IV is: ', IV)
+        message('\nThe MOD is: ', MOD)
+        if (!is.null(COVARS))  message('\nThe covariates are: ', COVARS)
+        message('\n\nMultiple regression statistics for when the product term(s) is in the model:')
+        resultats(xx)
+      }  
+    }
   }
   
-  
-  
-  modelMAIN <- lm(formMAIN, data=donnes, model=TRUE, x=TRUE, y=TRUE)
-  
-  modelMAINsum <- summary(modelMAIN)
-  
-  RsqMAIN <- modelMAINsum$r.squared
-  
-  # Using the classical R^2 test statistic for (linear) regression designs, 
-  # this function computes the corresponding Bayes factor test
-  # the Bayes factor (against the intercept-only null)
-  Nvars <- ncol(donnes) - 1
-  BF_mod_Rsq <- linearReg.R2stat(R2 = RsqMAIN, N = nrow(donnes), p = Nvars, 
-                                 simple = TRUE)
-  
-  # creating a new version of the raw data, from the lm output, 
-  # so that can provide stats for dummy codes
-  # modeldata is needed for moderation analyses (next)
-  modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
-  colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
-  
-  # mainRcoefs <- PARTIAL_COEFS(cormat=cor(modeldata),
-  #                             modelRsq=summary(modelMAIN)$r.squared, verbose=FALSE)
-  
-  mainRcoefs <- 
-    PARTIAL_COR(data=cor(modeldata), Y=DV, X=colnames(modeldata)[-1], 
-                Ncases=nrow(donnes), verbose=FALSE)
-  
-  mainRcoefs <- cbind(mainRcoefs$betas, mainRcoefs$Rx_y, 
-                      mainRcoefs$R_partials, mainRcoefs$R_semipartials)
-  colnames(mainRcoefs) <- c('beta','r','partial.r','semipartial.r')
-  
-  
-  if (MCMC) {
-    
-    mod_lmBF <- lmBF(formMAIN, data = donnes)
-    
-    chains <- posterior(mod_lmBF, iterations = Nsamples, progress = FALSE)
-    
-    Nests <- ncol(chains) - 2
-    
-    # parameters estimates & CIs
-    ests <- colMeans(chains[,1:Nests])
-    quant_size <- (100 - CI_level) / 2
-    quant_lb <- quant_size * .01
-    quant_ub <- (100 - quant_size) * .01
-    ests_ci_lb <- apply(chains[,1:Nests],2,quantile,probs=quant_lb)
-    ests_ci_ub <- apply(chains[,1:Nests],2,quantile,probs=quant_ub)
-    
-    # https://cran.r-project.org/web/packages/BayesFactor/vignettes/manual.html#regression
-    # The results are quite similar, apart from the intercept. This is due to the 
-    # Bayesian model centering the covariates before analysis, so the mu parameter 
-    # is the mean of  rather than the expected value of the response variable 
-    # when all uncentered covariates are equal to 0.
-    
-    # standardized estimates & CIs
-    SD_preds <- apply(donnes,2,sd)
-    ests_z <- c(NA, (ests[-1] * SD_preds[-1]) / SD_preds[1])
-    ests_z_ci_lb <- c(NA, (ests_ci_lb[-1] * SD_preds[-1]) / SD_preds[1])
-    ests_z_ci_ub <- c(NA, (ests_ci_ub[-1] * SD_preds[-1]) / SD_preds[1])
-    
-    # Bayes factors - for the estimates, from just t & N
-    t_values <- modelMAINsum$coefficients[,3]
-    BF_ests_h1h0 <- unlist(sapply(t_values, ttest.tstat, n1 = nrow(donnes), simple=TRUE))
-    BF_ests_h0h1 <- 1 / BF_ests_h1h0
-    
-    Bayes_ests <- cbind(ests, ests_ci_lb, ests_ci_ub, 
-                        ests_z, ests_z_ci_lb, ests_z_ci_ub,
-                        BF_ests_h1h0, BF_ests_h0h1)
-    rownames(Bayes_ests)[1] <- 'Intercept'
-    
-    prevmod_lmBF <- mod_lmBF
-  }
-  
-  modeldata$predicted <- modelMAIN$fitted.values
-  
-  # casewise diagnostics
-  modeldata$residuals <- resid(modelMAIN)
-  modeldata$residuals_standardized <- rstandard(modelMAIN)
-  modeldata$residuals_studentized <- rstudent(modelMAIN)
-  modeldata$cooks_distance <- cooks.distance(modelMAIN)
-  modeldata$dfbeta <- dfbeta(modelMAIN)
-  modeldata$dffit <- dffits(modelMAIN)
-  modeldata$leverage <- hatvalues(modelMAIN)
-  modeldata$covariance_ratios <- covratio(modelMAIN)
-  
-  collin_diags <- Collinearity(model.matrix(modelMAIN), verbose=FALSE)
-  
-  if (verbose) {
-    
-    message('\n\nThe DV is: ', DV)
-    message('\nThe IV is: ', IV)
-    message('\nThe MOD is: ', MOD)
-    message('\n\nMultiple regression statistics for when the product term is not in the model:')
-    
-    message('\n\nmultiple R = ', round(sqrt(RsqMAIN),3),  
-            '   multiple R-squared = ', round(RsqMAIN,3),
-            '   adjusted R-squared = ', round(modelMAINsum$adj.r.squared,3))
-    
-    Fstats <- modelMAINsum$fstatistic
-    pvalue <- pf(Fstats[1], Fstats[2], Fstats[3], lower.tail=FALSE)
-    
-    message('\nF = ', round(Fstats[1],2), '   df_num = ', Fstats[2], '   df_denom = ', Fstats[3], 
-            '   p-value = ', round(pvalue,6), '\n')
-    
-    BF_interps(BF_10 = BF_mod_Rsq, BF_01 = (1 / BF_mod_Rsq) )
-    
-    modelMAINsum$coefficients <- cbind(modelMAINsum$coefficients, confint(modelMAIN))
-    message('\n\nModel Coefficients:\n')
-    print(round_boc(modelMAINsum$coefficients,3), print.gap=4)
-    
-    message('\nBeta, r, partial correlations, & semi-partial correlations:\n')
-    print(round(mainRcoefs,3), print.gap=4)	
-    
-    if (MCMC) {
-      
-      message('\nBayesian Raw and Standardized Coefficients and Bayes Factors:\n')
-      
-      colnames(Bayes_ests) <- cbind('b', 'b_ci_lb', 'b_ci_ub', 
-                                    'Beta', 'Beta_ci_lb', 'Beta_ci_ub',
-                                    'BF_10', 'BF_01')
-      
-      print(round_boc(Bayes_ests, round_non_p = 2, round_p = 5), print.gap=4)
-    }
-    
-    message('\n\nCorrelation matrix:\n')
-    # if (!is.null(forced)) print(round(cor(modeldata[,c(DV,forced)]),3), print.gap=4)		
-    # if (modreg)           print(round(cor(modeldata[,c(IV,MOD,COVARS)]),3), print.gap=4)
-    print(round(cor(modeldata[,c(DV,names(modelMAIN$coefficients)[-1])]),3), print.gap=4)		
-    
-    message('\n\nCollinearity Diagnostics:\n')
-    print(round(collin_diags$VIFtol, 3), print.gap=4)
-    message('\nThe mean Variance Inflation Factor = ', round(mean(collin_diags$VIFtol[,2]),3))
-    message('\nMulticollinearity is said to exist when VIF values are > 5, or when Tolerance values')
-    message('are < 0.1. Multicollinearity may be biasing a regression model, and there is reason')
-    message('for serious concern, when VIF values are greater than 10.\n\n')
-    print(round(collin_diags$CondInd,3), print.gap=4)
-    message('\nThe coefficients for the Intercept and for the predictors are the Variance Proportions.')
-    message('\nEigenvalues that differ greatly in size suggest multicollinearity. Multicollinearity is')
-    message('said to exist when the largest condition index is between 10 and 30, and evidence for')
-    message('the problem is strong when the largest condition index is > 30. Multicollinearity is')
-    message('also said to exist when the Variance Proportions (in the same row) for two variables are')
-    message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
-  }
-  
-  
-  
-  
-  # get the names of the MOD variable/its dummy codes
-  noms <- colnames(modeldata)
-  
-  # names of the regression diagnostic variables -- for exclusion from MODnew
-  nomsdiags <- c("residuals_standardized", "residuals_studentized", "cooks_distance",        
-                 "dfbeta", "dffit", "leverage", "covariance_ratios", "predicted", "residuals")
-  
-  MODnew <- setdiff(noms,c(DV,IV,COVARS, nomsdiags))
-  
-  
-  # create PROD(s)
-  prods <- data.frame(modeldata[,IV] * modeldata[,MODnew])
-  colnames(prods) <- paste(paste(IV, ":", sep = ""), MODnew, sep = "")
-  head(prods)
-  
-  PROD <- colnames(prods)
-  don5 <- data.frame(cbind(modeldata, prods), check.names=FALSE)
-  
-  termsPOSSIBLE <- c(IV,MODnew,PROD,COVARS)
-  
-  formXn <- as.formula(paste(DV, paste(termsPOSSIBLE, collapse=" + "), sep=" ~ "))
-  
-  modelXN <- lm(formXn, data=don5, model=TRUE, x=TRUE, y=TRUE)
-  #print(modelXN); print(summary(modelXN)); print(vcov(modelXN))
-  
-  modelXNsum <- summary(modelXN)
-  
-  RsqXN <- modelXNsum$r.squared
-  
-  # Using the classical R^2 test statistic for (linear) regression designs, 
-  # this function computes the corresponding Bayes factor test
-  # the Bayes factor (against the intercept-only null)
-  Nvars <- ncol(don5) - 1
-  BF_mod_Rsq <- linearReg.R2stat(R2 = RsqXN, N = nrow(don5), p = Nvars, 
-                                 simple = TRUE)
-  
-  # XN vs MAIN model comparisons	
-  RsqchXn <- RsqXN - RsqMAIN	
-  fsquaredXN <- (RsqXN - RsqMAIN) / (1 - RsqXN)	
-  
-  # xnRcoefs <- PARTIAL_COEFS(cormat=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), 
-  #                           modelRsq=summary(modelXN)$r.squared, verbose=FALSE)
-  
-  xnRcoefs <- 
-    PARTIAL_COR(data=cor(don5[,c(DV,IV,MODnew,COVARS,PROD)]), Y=DV, 
-                X=c(IV,MODnew,COVARS,PROD), Ncases=nrow(don5), verbose=FALSE)
-  
-  xnRcoefs <- cbind(xnRcoefs$betas, xnRcoefs$Rx_y, 
-                    xnRcoefs$R_partials, xnRcoefs$R_semipartials)
-  colnames(xnRcoefs) <- c('beta','r','partial.r','semipartial.r')
-  
-  
-  if (MCMC) {
-    
-    mod_lmBF <- lmBF(formXn, data = don5)
-    
-    chains <- posterior(mod_lmBF, iterations = Nsamples, progress = FALSE)
-    
-    Nests <- ncol(chains) - 2
-    
-    # parameters estimates & CIs
-    ests <- colMeans(chains[,1:Nests])
-    quant_size <- (100 - CI_level) / 2
-    quant_lb <- quant_size * .01
-    quant_ub <- (100 - quant_size) * .01
-    ests_ci_lb <- apply(chains[,1:Nests],2,quantile,probs=quant_lb)
-    ests_ci_ub <- apply(chains[,1:Nests],2,quantile,probs=quant_ub)
-    
-    # https://cran.r-project.org/web/packages/BayesFactor/vignettes/manual.html#regression
-    # The results are quite similar, apart from the intercept. This is due to the 
-    # Bayesian model centering the covariates before analysis, so the mu parameter 
-    # is the mean of  rather than the expected value of the response variable 
-    # when all uncentered covariates are equal to 0.
-    
-    # standardized estimates & CIs
-    SD_preds <- apply(don5[,c(DV,IV,MODnew,COVARS,PROD)],2,sd)
-    ests_z <- c(NA, (ests[-1] * SD_preds[-1]) / SD_preds[1])
-    ests_z_ci_lb <- c(NA, (ests_ci_lb[-1] * SD_preds[-1]) / SD_preds[1])
-    ests_z_ci_ub <- c(NA, (ests_ci_ub[-1] * SD_preds[-1]) / SD_preds[1])
-    
-    # Bayes factors - for the estimates, from just t & N
-    t_values <- modelXNsum$coefficients[,3]
-    BF_ests_h1h0 <- unlist(sapply(t_values, ttest.tstat, n1 = nrow(don5), simple=TRUE))
-    BF_ests_h0h1 <- 1 / BF_ests_h1h0
-    
-    Bayes_ests <- cbind(ests, ests_ci_lb, ests_ci_ub, 
-                        ests_z, ests_z_ci_lb, ests_z_ci_ub,
-                        BF_ests_h1h0, BF_ests_h0h1)
-    rownames(Bayes_ests)[1] <- 'Intercept'
-  }
-  
-  modeldata$predicted <- modelXN$fitted.values
-  
-  
-  # casewise diagnostics
-  modeldata$residuals <- resid(modelXN)
-  modeldata$residuals_standardized <- rstandard(modelXN)
-  modeldata$residuals_studentized <- rstudent(modelXN)
-  modeldata$cooks_distance <- cooks.distance(modelXN)
-  modeldata$dfbeta <- dfbeta(modelXN)
-  modeldata$dffit <- dffits(modelXN)
-  modeldata$leverage <- hatvalues(modelXN)
-  modeldata$covariance_ratios <- covratio(modelXN)
-  
-  
-  if (verbose) {	
-    
-    message('\n\nModerated regression:')
-    
-    if (MOD_type == 'numeric' & MOD_levels == 'user')
-      message('\nThe specification for MOD_levels is: ', paste(mod_values, collapse=', '), '\n')
-    
-    if (MOD_levels == 'quantiles') 
-      message('\nThe moderator quantiles that will be used: ', paste(quantiles_MOD, collapse=', ') )
-    
-    message('\n\nmultiple R = ', round(sqrt(RsqXN),3), 
-            '   multiple R-squared = ', round(RsqXN,3),
-            '   adjusted R-squared = ', round(modelXNsum$adj.r.squared,3))
-    
-    Fstats <- modelXNsum$fstatistic
-    pvalue <- pf(Fstats[1], Fstats[2], Fstats[3], lower.tail=FALSE)
-    
-    message('\nF = ', round(Fstats[1],2), '   df_num = ', Fstats[2], '   df_denom = ', Fstats[3], 
-            '   p-value = ', round(pvalue,6))
-    
-    message('\n\nModel comparisons:')
-    message('\nRsquared change = ', round(RsqchXn,3))
-    message('\nf-squared change = ', round(fsquaredXN,3))
-    
-    fish <- anova(modelXN, modelMAIN)
-    message('\nF = ', round(fish$F[2],2), '   df_num = ', 1, '   df_denom = ', fish$Res.Df[1], 
-            '   p-value = ', round(fish$'Pr(>F)'[2],6), '\n')
-    
-    if (MCMC) {
-      
-      prevmod_lmBF@data <- mod_lmBF@data
-      
-      BF_change <- mod_lmBF / prevmod_lmBF
-      
-      BF_change <- as.numeric(unlist(extractBF(BF_change))[1])
-      
-      BF_interps(BF_M2 = BF_change)
-      
-    }
-    
-    modelXNsum$coefficients <- cbind(modelXNsum$coefficients, confint(modelXN))
-    message('\n\nModel Coefficients:\n')
-    print(round(modelXNsum$coefficients,3), print.gap=4)
-    
-    message('\nBeta, r, partial correlations, & semi-partial correlations:\n')
-    print(round(xnRcoefs,3), print.gap=4)
-    
-    if (MCMC) {
-      
-      message('\nBayesian Raw and Standardized Coefficients and Bayes Factors:\n')
-      
-      colnames(Bayes_ests) <- cbind('b', 'b_ci_lb', 'b_ci_ub', 
-                                    'Beta', 'Beta_ci_lb', 'Beta_ci_ub',
-                                    'BF_10', 'BF_01')
-      
-      print(round_boc(Bayes_ests, round_non_p = 2, round_p = 5), print.gap=4)
-    }
-  }	
-  
+ 
   
   
   # the values/levels of MOD, if it is continuous
   if (MOD_type != 'factor') {  
     
-    if (MOD_levels=='quantiles')  mod_values <- quantile(donnes[,MOD], probs=quantiles_MOD)
+    if (MOD_levels=='quantiles')  
+      mod_values <- quantile(donnes[,MOD], probs=quantiles_MOD)
     
     if (MOD_levels=='AikenWest') {
       MODmn <- sapply(donnes[MOD], mean, na.rm = TRUE)
@@ -439,10 +234,6 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
       MODhi <- MODmn + MODsd
       mod_values <- c(MODlo, MODmn, MODhi)
     }	
-    
-    # if (length(MOD_levels) > 1) mod_values <- MOD_levels
-    
-    # mod_values <- round(mod_values,3)
     
     # make sure there are no duplicates, due to rounding, in mod_values
     for (lupe in 1:10) {
@@ -458,88 +249,98 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   
   
   
+  modelXN <- xx$model
+  modeldata <- xx$modeldata
   
+
+  ###############################  simple slopes  ##################################
   
-  ###########################  simple slopes  ###########################
+  simslop <- simslopZ <- NULL
   
-  coefs <- modelXN$coefficients
-  Sb <- vcov(modelXN)[2:length(coefs),2:length(coefs)]
-  if (MOD_type != 'factor') {
-    slopes   <- coefs[IV] + coefs[PROD] * mod_values
-    intercepts  <- coefs[MOD] * mod_values + coefs['(Intercept)']
-    SEslopes <- sqrt( Sb[IV,IV] + 2*mod_values*Sb[IV,PROD] +  mod_values**2 * Sb[PROD,PROD])
-  } else { 
-    slopes   <- c(coefs[IV], (coefs[IV] + coefs[PROD]))
-    intercepts  <- c(coefs[1],  (coefs[1]  + coefs[MODnew]))
-    diagSB   <- diag(Sb)
-    SEslopes <- c(sqrt(Sb[1,1]), sqrt( abs(Sb[1,1] - diagSB[PROD])))
+  # only if IV is not a factor
+  if (IV_type == 'numeric') {
+    
+    coefs <- modelXN$coefficients
+    Sb <- vcov(modelXN)[2:length(coefs),2:length(coefs)]
+    if (MOD_type != 'factor') {
+      slopes   <- coefs[IV] + coefs[PROD_terms] * mod_values
+      intercepts  <- coefs[MOD] * mod_values + coefs['(Intercept)']
+      SEslopes <- sqrt( Sb[IV,IV] + 2*mod_values*Sb[IV,PROD_terms] +  mod_values**2 * Sb[PROD_terms,PROD_terms])
+    } else { 
+      slopes   <- c(coefs[IV], (coefs[IV] + coefs[PROD_terms]))
+      intercepts  <- c(coefs[1],  (coefs[1]  + coefs[MOD_terms]))
+      diagSB   <- diag(Sb)
+      SEslopes <- c(sqrt(Sb[1,1]), sqrt( abs(Sb[1,1] - diagSB[PROD_terms])))
+    }
+    tslopes <- slopes / diag(SEslopes)
+    tslopes <- slopes / SEslopes
+    N <- nrow(donnes)
+    df <- modelXN$df.residual
+    k <- length(coefs) - 1     # number of predictors 
+    dfs <-  N - k -1  
+    pslopes <- (1 - pt(abs(tslopes),dfs)) * 2
+    # CIs - 2003 Cohen Aiken West p 278
+    tabledT <- qt(((100 - CI_level) / 2 * .01), dfs)   # tabledT <- qt(.975, dfs)  
+    me <- tabledT * SEslopes
+    confidLo <- slopes - me
+    confidHi <- slopes + me
+    
+    simslop <- data.frame(Intercept=intercepts, b=slopes, SE_b=SEslopes, 
+                          t=tslopes, p=pslopes, b_CI_lo=confidLo, b_CI_hi=confidHi)
+    rownames(simslop) <- mod_values
+    
+    if (verbose) {
+      message('\n\nSimple slopes for the levels of the moderator:\n')
+      print(round_boc(simslop), print.gap=4)   # , row.names = FALSE)
+    }
+    
+    # standardized slopes
+    if (MOD_type == 'factor') {	
+      grp_correls <- sapply(
+        split(data.frame(donnes[,DV], donnes[,IV]), donnes[,MOD]),  
+        function(x) cor(x[[1]],x[[2]]) )
+      grp_DV_SDs <- tapply(donnes[,DV], donnes[,MOD], sd)
+      grp_IV_SDs <- tapply(donnes[,IV], donnes[,MOD], sd)
+      # grp_DV_MNs <- tapply(donnes[,DV], donnes[,MOD], mean)   # for JN
+      grp_IV_MNs <- tapply(donnes[,IV], donnes[,MOD], mean)   # for JN
+      zslopes <- slopes   * (grp_IV_SDs / grp_DV_SDs)
+      zSE     <- SEslopes * (grp_IV_SDs / grp_DV_SDs)
+      me <- tabledT * zSE
+      confidLo <- zslopes - me
+      confidHi <- zslopes + me
+      simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
+                             beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=grp_correls)
+      rownames(simslopZ) <- mod_values
+    } else {
+      zslopes <- slopes   * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )
+      zSE     <- SEslopes * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )	
+      # compute zslopes  = slopes &*  (sd(1,1)/sd(1,4)).
+      # compute zSE = SEslopes &* (sd(1,1)/sd(1,4))  .	
+      me <- tabledT * zSE
+      confidLo <- zslopes - me
+      confidHi <- zslopes + me	
+      reffsize <- sqrt( tslopes**2 / (tslopes**2 + dfs) )  # EffectSizeConversion.pdf	
+      simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
+                             beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=reffsize)
+      rownames(simslopZ) <- mod_values
+    }
+    
+    if (verbose) {
+      message('\nStandardized simple slopes & r for the levels of the moderator:\n')
+      print(round_boc(simslopZ), print.gap=4)   # , row.names = FALSE)
+    }
   }
-  tslopes <- slopes / diag(SEslopes)
-  tslopes <- slopes / SEslopes
-  N <- nrow(donnes)
-  df <- modelXN$df.residual
-  k <- length(coefs) - 1     # number of predictors 
-  dfs <-  N - k -1  
-  pslopes <- (1 - pt(abs(tslopes),dfs)) * 2
-  # CIs - 2003 Cohen Aiken West p 278
-  tabledT <- qt(((100 - CI_level) / 2 * .01), dfs)   # tabledT <- qt(.975, dfs)  
-  me <- tabledT * SEslopes
-  confidLo <- slopes - me
-  confidHi <- slopes + me
-  
-  # simslop <- data.frame(MODlevel=mod_values, Intercept=intercepts, Slope=slopes, SEslopes=SEslopes, 
-  # t=tslopes, p=pslopes, Slope_CI_lo=confidLo, Slope_CI_hi=confidHi)
-  simslop <- data.frame(Intercept=intercepts, b=slopes, SE_b=SEslopes, 
-                        t=tslopes, p=pslopes, b_CI_lo=confidLo, b_CI_hi=confidHi)
-  rownames(simslop) <- mod_values
-  
-  if (verbose) {
-    message('\n\nSimple slopes for the levels of the moderator:\n')
-    print(round_boc(simslop), print.gap=4)   # , row.names = FALSE)
-  }
-  
-  # standardized slopes
-  if (MOD_type == 'factor') {	
-    grp_correls <- sapply(
-      split(data.frame(donnes[,DV], donnes[,IV]), donnes[,MOD]),  
-      function(x) cor(x[[1]],x[[2]]) )
-    grp_DV_SDs <- tapply(donnes[,DV], donnes[,MOD], sd)
-    grp_IV_SDs <- tapply(donnes[,IV], donnes[,MOD], sd)
-    # grp_DV_MNs <- tapply(donnes[,DV], donnes[,MOD], mean)   # for JN
-    grp_IV_MNs <- tapply(donnes[,IV], donnes[,MOD], mean)   # for JN
-    zslopes <- slopes   * (grp_IV_SDs / grp_DV_SDs)
-    zSE     <- SEslopes * (grp_IV_SDs / grp_DV_SDs)
-    me <- tabledT * zSE
-    confidLo <- zslopes - me
-    confidHi <- zslopes + me
-    simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
-                           beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=grp_correls)
-    rownames(simslopZ) <- mod_values
-  } else {
-    zslopes <- slopes   * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )
-    zSE     <- SEslopes * (sd(modeldata[,IV]) / sd(modeldata[,DV]) )	
-    # compute zslopes  = slopes &*  (sd(1,1)/sd(1,4)).
-    # compute zSE = SEslopes &* (sd(1,1)/sd(1,4))  .	
-    me <- tabledT * zSE
-    confidLo <- zslopes - me
-    confidHi <- zslopes + me	
-    reffsize <- sqrt( tslopes**2 / (tslopes**2 + dfs) )  # EffectSizeConversion.pdf	
-    simslopZ <- data.frame(beta=zslopes, SE_beta=zSE, 
-                           beta_CI_lo=confidLo, beta_CI_hi=confidHi, r=reffsize)
-    rownames(simslopZ) <- mod_values
-  }
-  
-  if (verbose) {
-    message('\nStandardized simple slopes & r for the levels of the moderator:\n')
-    print(round_boc(simslopZ), print.gap=4)   # , row.names = FALSE)
-  }
-  
   
   
   
   ###########################  Johnson-Neyman regions of significance  ###########################
   
-  IV_min_JN   <- min(modelXN$model[,IV])
+  JN.data <- ros <- NULL
+  
+  # only if IV is not a factor
+  if (IV_type == 'numeric') {
+    
+    IV_min_JN   <- min(modelXN$model[,IV])
   IV_max_JN   <- max(modelXN$model[,IV])
   
   # # IV min & max 
@@ -550,12 +351,6 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   # IV_min_JN <- IV_range[1]
   # IV_max_JN <- IV_range[2]
   # }		
-  
-  # modelXN  <- model$modelXN
-  
-  JN.data <- NULL
-  
-  ros <- NULL
   
   if (MOD_type == 'numeric') {
     
@@ -571,14 +366,14 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
     MODvalues <- seq(MOD_min, MOD_max, by = byint)
     
     
-    B <- modelXN$coefficients[c('(Intercept)',IV,MOD,PROD)]
-    S <- stats::vcov(modelXN)[c('(Intercept)',IV,MOD,PROD), c('(Intercept)',IV,MOD,PROD)]
-
+    B <- modelXN$coefficients[c('(Intercept)',IV,MOD,PROD_terms)]
+    S <- stats::vcov(modelXN)[c('(Intercept)',IV,MOD,PROD_terms), c('(Intercept)',IV,MOD,PROD_terms)]
+    
     tcrit <- qt(((100 - CI_level) / 2 * .01), modelXN$df.residual)  # tcrit <- qt(0.975, modelXN$df.residual)
-
-        # construct the quadratic equation
-    a <- tcrit^2 * S[PROD,PROD] - B[PROD]^2
-    b <- 2 * (tcrit^2 * S[IV,PROD] - B[IV]*B[PROD])
+    
+    # construct the quadratic equation
+    a <- tcrit^2 * S[PROD_terms,PROD_terms] - B[PROD_terms]^2
+    b <- 2 * (tcrit^2 * S[IV,PROD_terms] - B[IV]*B[PROD_terms])
     c <- tcrit^2 * S[IV,IV] - B[IV]^2
     
     
@@ -592,8 +387,8 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
       MODvalues <- sort(c(MODvalues, ros[ros >= MOD_min & ros <= MOD_max ])	)
       
       # data for plot
-      SimpleSlope <- B[IV]+(B[PROD]*MODvalues)
-      StdError <- sqrt((S[IV,IV])+(MODvalues^2*S[PROD,PROD])+(2*MODvalues*S[IV,PROD]) )   
+      SimpleSlope <- B[IV]+(B[PROD_terms]*MODvalues)
+      StdError <- sqrt((S[IV,IV])+(MODvalues^2*S[PROD_terms,PROD_terms])+(2*MODvalues*S[IV,PROD_terms]) )   
       CI.L <- SimpleSlope - tcrit*StdError  
       CI.U <- SimpleSlope + tcrit*StdError  
       JN.data <- data.frame(SimpleSlope, CI.L, CI.U, MODvalues, StdError)
@@ -640,7 +435,7 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
   if (MOD_type == 'factor') {
     
     N <- length(modelXN$y)
-    Ngroups <- length(MODnew) + 1  # OK?	 	
+    Ngroups <- length(MOD_terms) + 1  # OK?	 	
     Ncombins <- choose(Ngroups,2)  # the # of possible 2-group comparisons
     grpNs <- grp_IV_MNs <- grp_DV_MNs <- sscp11 <- sscp12 <- sscp22 <- ssreg <- 
       intercepts <- slopes <- ssresid <- rep(-9999, Ngroups)
@@ -737,291 +532,293 @@ MODERATED_REGRESSION <- function (data, DV, IV, MOD,
                 (grp_IV_MNs[lupe2]**2/sscp11[lupe2]) ) + (intercepts[lupe1] - intercepts[lupe2])**2				     		
         }		
         
-        # XL1 <- (B*-1 - sqrt(B**2 - A * C)) / A
-        
-        # XL2 <- (B*-1 + sqrt(B**2 - A * C)) / A
-        
-        # lohi <- rbind(lohi, c(XL1, XL2))
-        
         if ((B**2 - A*C) > 0) {
           
           hi <- (-B + (sqrt(B**2 - A*C)) ) / A
           lo <- (-B - (sqrt(B**2 - A*C)) ) / A
           
-          # if (hi > lo)  JNlohigrps <- rbind(JNlohigrps, c(lo, hi))
-          
-          # if (hi > lo)  Xhi <- rbind(Xhi, hi)
-          # if (lo < hi)  Xlo <- rbind(Xlo, lo)
-          
           if (hi > lo) { JNlohigrps <- rbind(JNlohigrps, c(lo,hi))
           } else { JNlohigrps <- rbind(JNlohigrps, c(NA,NA)) }
         } else { JNlohigrps <- rbind(JNlohigrps, c(NA,NA)) }
-      
-      compnoms <- rbind(compnoms,  paste('Groups',lupe1,'&',lupe2, sep=' ') )
-    }
-  }
-  
-  JNlohigrps <- JNlohigrps[-1, ,drop = FALSE]
-  # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
-  # JNlohigrps <- cbind(Xlo[-1], Xhi[-1])
-  # JNlohigrps <- cbind(XL1, XL2)
-  colnames(JNlohigrps) <- c('Low Value', 'High Value')
-  rownames(JNlohigrps) <- compnoms[-1,]
-  
-  
-  # compute A=((2*tabledF*-1)/(N-4)) * ssresd * ((1/ssreg1)+(1/ssreg2)) + (bb**2).
-  # compute B=(2*tabledF/(N-4))*ssresd*((mn1(1,1)/ssreg1)+(mn2(1,1)/ssreg2))+(aa*bb).
-  # compute C=((2*tabledF*-1)/(N-4)) * ssresd * ( (N/(n1*n2))+
-  #                                                 ((mn1(1,1)**2)/ssreg1)+((mn2(1,1)**2)/ssreg2) ) + (aa**2).
-  # compute Xlo = -9999.
-  # compute Xhi = -9999.
-  # do if ( (B**2 - A*C) gt 0).
-  # compute hi = (-B + (sqrt(B**2 - A*C)) ) / A.
-  # compute lo = (-B - (sqrt(B**2 - A*C)) ) / A.
-  # do if (hi > lo).
-  # compute Xhi = hi.
-  # end if.
-  # do if (lo < hi).
-  # compute Xlo = lo.
-  # end if.
-  # end if.
-  # 
-  # print /title=
-  #   "Simultaneous Regions of Significance -- Johnson-Neyman Technique:" / space=2.
-  # print /title=
-  #   "The regression lines for group comparisons are significantly different".
-  # print {xlo, xhi}  /format="f12.3" 
-  # /title="at IDV scores < Lo Value & > Hi Value:"
-  # /clabels="Lo Value" "Hi Value".
-  # print /title="-9999 indicates that meaningful values could not be computed.".
-  # 
-  
-  if (verbose) {
-    message('\n\nSimultaneous regions of significance -- Johnson-Neyman Technique:')
-    message('\nUsing Bonferroni F, p = .05, 2-tailed; see Huitema, 1980, p. 293')
-    message('The regression lines for group comparisons are significantly different')
-    message('at IDV scores < Low Value & > High Value:\n')
-    
-    print(round(JNlohigrps,3), print.gap = 4)
-    if (any(is.na(JNlohigrps))) message('\n    NA indicates that meaningful values could not be computed.\n')	
-  }
-}		
-
-
-
-
-
-######################################    plot data    #######################################
-
-
-plotdon <- NULL
-
-if (plot_type == 'interaction') {
-  
-  
-  # IV min & max values for plot -- categorical MOD
-  if (MOD_type == 'factor') {	
-    
-    Ngroups <- length(levels(donnes[,MOD]))
-    plotdon <- rep(-9999,Ngroups)
-    
-    # IV min & max values for plot -- dichotomous IV
-    if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
-      IV_min <- rep( (levels(donnes[,MOD])[1] = 0), Ngroups)
-      IV_max <- rep( (levels(donnes[,MOD])[2] = 1), Ngroups)
-    }
-    
-    # IV min & max values for plot -- numeric IV      
-    if (IV_type == 'numeric') {
-      IV_min <- IV_max <- NULL
-      for (lupeD in 1:Ngroups) {
         
-        dontemp <- subset(donnes, mod_values==levels(donnes[,MOD])[lupeD], select=IV)
-        
-        if (IV_range == 'quantiles' | IV_range == 'tumble') {   # using the 10th & 90th
-          IVquants <- quantile(dontemp, na.rm=T, probs=quantiles_IV)	
-          IV_min <- c(IV_min, IVquants[1])
-          IV_max <- c(IV_max, IVquants[2])
-        } else if (IV_range == 'minmax') {  
-          IV_min <- c(IV_min, min(dontemp))
-          IV_max <- c(IV_max, max(dontemp))
-        } else if (IV_range == 'AikenWest') { 
-          IVmn <- sapply(dontemp[IV], mean, na.rm = TRUE)
-          IVsd <- sapply(dontemp[IV], sd, na.rm = TRUE)
-          IV_min <- c(IV_min, (IVmn - IVsd))
-          IV_max <- c(IV_max, (IVmn + IVsd))
-        } else if (IV_range == 'numeric') {	
-          IV_min <- c(IV_min, IV_range_user[1])
-          IV_max <- c(IV_max, IV_range_user[2])
-        }			
-      }		
+        compnoms <- rbind(compnoms,  paste('Groups',lupe1,'&',lupe2, sep=' ') )
+      }
     }
     
-    # the dummy codes for MOD
-    MODdummys <- contrasts(donnes[,MOD])
+    JNlohigrps <- JNlohigrps[-1, ,drop = FALSE]
+    colnames(JNlohigrps) <- c('Low Value', 'High Value')
+    rownames(JNlohigrps) <- compnoms[-1,]
     
-    plotdon <- rbind( cbind(IV_min, MODdummys), cbind(IV_max, MODdummys) )
-    colnames(plotdon) <- c(IV, MODnew)
-  }
-  
-  
-  
-  # IV min & max values for plot -- continuous MOD
-  if (MOD_type == 'numeric') {	
+
     
-    # IV min & max values for plot -- dichotomous IV
-    if (IV_type == 'factor' & length(levels(donnes[,IV])) == 2) {
-      IV_min <- levels(donnes[,MOD])[1] = 0
-      IV_max <- levels(donnes[,MOD])[2] = 1
-    }
-    
-    # IV min & max values for plot -- numeric IV
-    if (IV_type == 'numeric') {
+    if (verbose) {
+      message('\n\nSimultaneous regions of significance -- Johnson-Neyman Technique:')
+      message('\nUsing Bonferroni F, p = .05, 2-tailed; see Huitema, 1980, p. 293')
+      message('The regression lines for group comparisons are significantly different')
+      message('at IDV scores < Low Value & > High Value:\n')
       
-      plotdon <- rep(-9999,2)
-      if (IV_range == 'tumble') { # | 
+      print(round(JNlohigrps,3), print.gap = 4)
+      if (any(is.na(JNlohigrps))) message('\n    NA indicates that meaningful values could not be computed.\n')	
+    }
+  }		
+}
+  
+  
+  ###########################   interaction plot    ############################
+  
+  plotdon <- NULL
+  
+  if (plot_type == 'interaction') {
+    
+    # plotdon will have more IV values when IV_range == 'tumble' than for the other
+    # IV_range methods. Therefore, plotdon will be computed in different ways:
+    
+    # can't compute tumble graph ranges when IV is a factor
+    if (IV_range == 'tumble' & IV_type == 'factor')  IV_range = 'AikenWest'
+    
+    if (IV_range == 'tumble') {
+      
+      if (MOD_type == 'factor') {
+        
         # Bodner 2016 p 598 tumble graph method for IV ranges
+        # For categorical moderator variables, researchers will likely have a distribu-
+        # tion of scores on the target predictor X within each category of M, and this
+        # feature provides several options. For example, the two values of X can be
+        # selected using the same quantities computed separately within each category
+        # (e.g., using the first and third quartile values in a category or at +1 within-
+        # category SD from the category mean for X). If the target variable variance is
+        # reasonably homogeneous across levels of the categorical moderator variable
+        # (e.g., the ratio of the largest to the smallest variance being less than 2), the SD
+        # can be based on the square root of the pooled (within-moderator level) target
+        # variable variances.
+        
+        # I am using the withing group mean & +1 or -1 SD method, with the SD being
+        # the pooled SD (from lm)
+        
+        formB <- as.formula(paste(IV, MOD, sep=" ~ "))
+        eq3 <- lm(formB, donnes)
+        sumtab <- summary(eq3)
+        sqrmsr <- sumtab$sigma  # the pooled SD
+        IV_vals <- MOD_vals <- NULL
+        
+        for (lupe in 1:length(mod_values)) {   # for (lupeD in 1:Ngroups) {
+          dontemp <- subset(donnes, mod_values==levels(donnes[,MOD])[lupe], select=IV)
+          IVmn <- sapply(dontemp[IV], mean, na.rm = TRUE)
+          IV_min <- IVmn - sqrmsr
+          IV_max <- IVmn + sqrmsr
+          IV_vals <- c(IV_vals, c(IV_min, IV_max))
+          MOD_vals <- c(MOD_vals, rep(mod_values[lupe],2))
+        }
+        plotdon <- data.frame(IV = IV_vals, MOD = MOD_vals)
+        colnames(plotdon) <- c(IV, MOD)
+      }
+      
+      if (MOD_type == 'numeric') {
+        
+        # Bodner 2016 p 598 tumble graph method for IV ranges
+        # For continuous moderator variables, the options are more limited, given that
+        # there may be no or few data values of X at a given value of M. If the relationship
+        # between X and M is approximately linear and the residuals of X about the
+        # regression line of X on M are reasonably symmetric and homoscedastic, then
+        # researchers may estimate quantities in the conditional distribution of X given M
+        # (e.g., at +1 residual SD around the predicted value of X given M). In particular,
+        # regress the target predictor X on the moderator variable M to obtain a regression
+        # equation, that is,
+        # Equation 3
         # Use Equation 3 to predict the conditional mean values of the target predictor 
         # X for each of the moderator variable values chosen in Step 1. The square root 
         # of the mean square residual from the analysis of variance summary table for 
         # this model is an estimate of the SD of the residuals around the predicted values; 
         # this value is added and subtracted from each predicted target variable value 
         # resulting in two values of the target variable X for each chosen moderator variable value. 
-        formB <- as.formula(paste(IV, MOD, sep=" ~ "))	
+        
+        formB <- as.formula(paste(IV, MOD, sep=" ~ "))
         eq3 <- lm(formB, donnes)
         sumtab <- summary(eq3)
-        sqrmsr <- sumtab$sigma	
+        sqrmsr <- sumtab$sigma
+        plotdon <- NULL
+        IV_vals <- MOD_vals <- NULL
+        
         for (lupe in 1:length(mod_values)) {
           predval <- sumtab$coeff[1,1] + sumtab$coeff[2,1] * mod_values[lupe]
           IV_min <- predval - sqrmsr
-          plotdon <- rbind( plotdon, c(IV_min, mod_values[lupe]))
           IV_max <- predval + sqrmsr
-          plotdon <- rbind( plotdon, c(IV_max, mod_values[lupe]))		
+          IV_vals <- c(IV_vals, c(IV_min, IV_max))
+          MOD_vals <- c(MOD_vals, rep(mod_values[lupe],2))
         }
-        plotdon <- plotdon[-1,]		
-      } else if (IV_range == 'quantiles') { # using the 10th & 90th
-        IVquants <- quantile(donnes[IV], na.rm=T, probs=quantiles_IV)	
-        IV_min <- IVquants[1]
-        IV_max <- IVquants[2]
-      } else if (IV_range == 'minmax') { 
-        IV_min <- min(donnes[IV])
-        IV_max <- max(donnes[IV])
-      } else if (IV_range == 'AikenWest') { 
-        IVmn <- sapply(donnes[IV], mean, na.rm = TRUE)
-        IVsd <- sapply(donnes[IV], sd, na.rm = TRUE)
-        IV_min <- IVmn - IVsd
-        IV_max <- IVmn + IVsd
-      } else if (IV_range == 'numeric') {	
-        IV_min <- IV_range_user[1]
-        IV_max <- IV_range_user[2]
+        plotdon <- data.frame(IV = IV_vals, MOD = MOD_vals)
+        colnames(plotdon) <- c(IV, MOD)
       }
-      
-      if (min(plotdon) == -9999) plotdon <- expand.grid(c(IV_min,IV_max), mod_values)
-      
-      colnames(plotdon) <- c(IV, MODnew)
     }
-  }
-  
-  
-  
-  # add COVARS data to plotdon for the predict function -- using the means of each
-  if (!is.null(COVARS)) {
-    # COVARSmn <- sapply(donnes[COVARS], mean, na.rm = TRUE)
     
-    COVARSmn <- matrix(sapply(donnes[COVARS], mean, na.rm = TRUE), nrow=1)
+    if (IV_range != 'tumble') {
+      
+      # IV values for plotdon
+      if (IV_type == 'factor')  IVvalues <- levels(donnes[,IV])
+      
+      if (IV_type == 'numeric') {
+        
+        if (IV_range == 'quantiles') { 
+          IVquants <- quantile(donnes[IV], na.rm=T, probs=quantiles_IV)	
+          IV_min <- IVquants[1]
+          IV_max <- IVquants[2]
+        }
+        
+        if (IV_range == 'minmax') { 
+          IV_min <- min(donnes[IV])
+          IV_max <- max(donnes[IV])
+        }
+        
+        if (IV_range == 'AikenWest') { 
+          IVmn <- sapply(donnes[IV], mean, na.rm = TRUE)
+          IVsd <- sapply(donnes[IV], sd, na.rm = TRUE)
+          IV_min <- IVmn - IVsd
+          IV_max <- IVmn + IVsd
+        }
+        
+        if (IV_range == 'numeric') {	
+          IV_min <- IV_range_user[1]
+          IV_max <- IV_range_user[2]
+        }
+        
+        IVvalues <- c(IV_min, IV_max)
+      }  # end of  if (IV_type == 'numeric')
+      
+      
+      # MOD values for plotdon = "mod_values", computed above
+      
+      plotdon <- expand.grid(IVvalues, mod_values)
+      colnames(plotdon) <- c(IV, MOD)
+    }
+
     
-    COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=nrow(plotdon), ncol=4, byrow=TRUE)
-    plotdon <- cbind(plotdon, COVARSmn)
-    colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
+    # add COVARS data to plotdon for the predict function
+    if (!is.null(COVARS)) {
+      
+      # COVARSmn <- matrix(sapply(donnes[COVARS], mean, na.rm = TRUE), nrow=1)
+      # 
+      # COVARSmn <- matrix(rep(COVARSmn,nrow(plotdon)), nrow=nrow(plotdon), 
+      #                    ncol=length(COVARS), byrow=TRUE)
+      # colnames(COVARSmn) <- COVARS
+      # 
+      # plotdon <- cbind(plotdon, COVARSmn)
+      # # colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
+      
+      # COVARS_values_list <- c()
+      
+      # when there are factors, cycle through the COVARS, use mean if continuous, use baseline if categorical
+      if (length(COVARS) > 0) {
+        
+        factor_vars <- names(xx$model$xlevels)
+        
+        for (lupe in 1:length(COVARS)) {
+          
+          if (COVARS[lupe] %in% factor_vars) {
+            
+            # COVARS_values_list[[COVARS[lupe]]] <- sort(list_xlevels[[COVARS[lupe]]])[1]
+            
+            # COVARS_values_list[[COVARS[lupe]]] <- unlist(modelXN$xlevels)[1]
+            
+            plotdon[,COVARS[lupe]] <- unlist(modelXN$xlevels)[1]
+            
+          } else { 
+            
+            # COVARS_values_list[[COVARS[lupe]]] <- mean(xx$modeldata[,COVARS[lupe]]) 
+            
+            # plotdon$grade90_factor <- unlist(modelXN$xlevels)[1] }
+            
+            plotdon[,COVARS[lupe]] <- mean(xx$modeldata[,COVARS[lupe]])
+          }
+        }
+      }
+    }
     
-    # plotdon <- cbind(plotdon, rep(COVARSmn,nrow(plotdon)))
-    # colnames(plotdon)[3:(2+length(COVARS))] <- COVARS
+    
+    predvals <- predict(modelXN, type='response', plotdon)
+    # removing COVARS from plotdon because not needed for plot
+    # plotdon <- subset(plotdon, select=c(IV,MOD_terms))
+    plotdon <- subset(plotdon, select=c(IV,MOD))
+    # adding the predicted DV values
+    plotdon$predDV <- predvals
+    colnames(plotdon)[colnames(plotdon) == 'predDV'] <- DV
+    
+    # set the range for the x and y axis 
+    if (IV_type == 'numeric') xrange <- range(plotdon[IV]) 
+    
+    yrange <- round(range(plotdon[DV]), 2)
+    # increase the upper ylim by 50%
+    if (IV_type == 'factor')  yrange <- better_ylim(yrange, buffer = 0.45)
+    
+    if (!is.null(DV_range))  yrange <- DV_range 
+    
+    # set up the plot 
+    
+    if (is.null(Xaxis_label))   Xaxis_label <- IV
+    
+    if (is.null(Yaxis_label))   Yaxis_label <- DV
+    
+    if (is.null(plot_title))    plot_title <- 'Interaction Plot'
+    
+    if (is.null(legend_label))  legend_label <- MOD
+    
+    
+    plotfun(testdata=plotdon, list_xlevels = modelXN$xlevels, 
+            DV_predicted=DV, CIs=FALSE, kind='OLS',
+            xlim=xrange, ylim=yrange, xlab=Xaxis_label, ylab=Yaxis_label, 
+            title=plot_title, cols_user=NULL,
+            IV_focal_1=IV, IV_focal_1_values=IVvalues, #plotdon[,IV], 
+            IV_focal_2=MOD, IV_focal_2_values=mod_values) 
+
+  } # end of  if (plot_type == 'interaction') 
+  
+  
+  
+  output <- list(modelsum=xx$modelsum, partialRcoefs=xx$partialRcoefs, 
+                 modeldata=xx$modeldata, collin_diags=xx$collin_diags,
+                 model=xx$model, modelsum=xx$modelsum, 
+                 Rsqch=xx$Rsqch, fsquared=xx$fsquared, partialRcoefs=xx$partialRcoefs, 
+                 simslop=simslop, simslopZ=simslopZ, 
+                 plotdon=plotdon, JN.data = JN.data, ros=ros, DV=DV, IV=IV, MOD=MOD, 
+                 family='OLS', # noms_list=noms_list, 
+                 chain_dat = xx$chains, 
+                 Bayes_HDIs = xx$Bayes_HDIs)
+  
+  class(output) <- "MODERATED_REGRESSION"
+  
+  
+  
+  # plot of Johnson-Neyman regions of significance
+  if (plot_type == 'regions') {
+    
+    if (is.null(Xaxis_label))   Xaxis_label <- MOD
+    
+    if (is.null(Yaxis_label))   Yaxis_label <- c(paste("Simple Slopes of",IV,'on',DV))
+    
+    if (is.null(plot_title))    plot_title <- c("Simple Slopes of",IV,'on',paste(DV,' by ',MOD,sep=""))
+    
+    if (is.null(legend_label))  legend_label <- 'Simple Slope'
+    
+    REGIONS_OF_SIGNIFICANCE(model=output,  
+                            IV_range=IV_range, MOD_range=MOD_range, 
+                            plot_title=plot_title, Yaxis_label=Yaxis_label, 
+                            Xaxis_label=Xaxis_label, legend_label=legend_label,
+                            names_IV_MOD=NULL) 
   }
   
-  plotdon <- data.frame(plotdon)
-  predvals <- predict(modelXN, type='response', plotdon)
-  # removing COVARS from plotdon because not needed for plot
-  plotdon <- subset(plotdon, select=c(IV,MODnew))
-  # adding the predicted DV values
-  plotdon$predDV <- predvals
-  colnames(plotdon)[colnames(plotdon) == 'predDV'] <- DV
+  if (plot_type == 'residuals') 
+    diagnostics_plots(model=xx$model, modeldata=modeldata, plot_diags_nums=c(16,2,3,4))
   
-  if (MOD_type == 'factor') { 
-    plotdon <- plotdon[,c(IV,DV)]
-    plotdon[,MOD] <- rep(mod_values,2) 
-  }
+  if (plot_type == 'diagnostics') 
+    diagnostics_plots(model=xx$model, modeldata=modeldata, plot_diags_nums=c(9,12,13,14))
   
+  if (plot_type == 'Bayes_HDI' & MCMC_options$MCMC & !is.null(xx$chains)) 
+    Bayes_HDI_plot(chain_dat = xx$chains, # [,c(IV, MOD_terms, PROD_terms)] 
+                   Bayes_HDIs = xx$Bayes_HDIs,
+                   CI_level = CI_level, # SDs = xx$SDs[c(DV, IV, MOD_terms, PROD_terms)],
+                   HDI_plot_est_type = MCMC_options$HDI_plot_est_type)
+    
+  return(invisible(output))
   
-  # set the range for the x and y axis 
-  xrange <- range(plotdon[IV]) 
-  
-  yrange <- range(plotdon[DV])
-  if (!is.null(DV_range))  yrange <- DV_range 
-  
-  
-  # set up the plot 
-  
-  if (is.null(Xaxis_label))   Xaxis_label <- IV
-  
-  if (is.null(Yaxis_label))   Yaxis_label <- DV
-  
-  if (is.null(plot_title))    plot_title <- 'Interaction Plot'
-  
-  if (is.null(legend_label))  legend_label <- MOD
-  
-  
-  plot(xrange, yrange, type="n", xlab=Xaxis_label, ylab=Yaxis_label, cex.lab=1.3, main=plot_title ) 
-  
-  for (i in 1:length(mod_values)) {
-    dum <- subset(plotdon, plotdon[,MOD]==mod_values[i], select = c(IV,DV))
-    lines(dum, type="b", lwd=1.5, lty=1, col=i, pch=19); #points(dum)
-  }
-  
-  if (MOD_type == 'numeric') {legvalues <- round(mod_values,2)} else {legvalues <- mod_values}
-  legend("topleft", legend=legvalues, title=legend_label, col=1:length(mod_values), 
-         bty="n", lty=1, lwd=2) # ,inset = c(.60,.03)
-  
-} # end of  if (plot_type == 'interaction') 
-
-
-
-output <- list(modelMAINsum=modelMAINsum, mainRcoefs=mainRcoefs, 
-               modeldata=modeldata, collin_diags=collin_diags,
-               modelXN=modelXN, modelXNsum=modelXNsum, 
-               RsqchXn=RsqchXn, fsquaredXN=fsquaredXN, xnRcoefs=xnRcoefs, 
-               simslop=simslop, simslopZ=simslopZ, 
-               plotdon=plotdon, JN.data = JN.data, ros=ros, DV=DV, IV=IV, MOD=MOD, family='OLS')
-class(output) <- "MODERATED_REGRESSION"
-
-
-
-# plot of Johnson-Neyman regions of significance
-if (plot_type == 'regions') {
-  
-  if (is.null(Xaxis_label))   Xaxis_label <- MOD
-  
-  if (is.null(Yaxis_label))   Yaxis_label <- c(paste("Simple Slopes of",IV,'on',DV))
-  
-  if (is.null(plot_title))    plot_title <- c("Simple Slopes of",IV,'on',paste(DV,' by ',MOD,sep=""))
-  
-  if (is.null(legend_label))  legend_label <- 'Simple Slope'
-  
-  REGIONS_OF_SIGNIFICANCE(model=output,  
-                          IV_range=IV_range, MOD_range=MOD_range, 
-                          plot_title=plot_title, Yaxis_label=Yaxis_label, 
-                          Xaxis_label=Xaxis_label, legend_label=legend_label,
-                          names_IV_MOD=NULL) 
-}
-
-if (plot_type == 'residuals') 
-  diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(16,2,3,4))
-
-if (plot_type == 'diagnostics') 
-  diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(9,12,13,14))
-
-
-return(invisible(output))
-
 }
 
 

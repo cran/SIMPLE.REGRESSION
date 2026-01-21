@@ -73,8 +73,7 @@
 }
 \author{Brian P. O'Connor }
 \examples{
-head(data_Cohen_Aiken_West_2003_7)
-
+# for Cohen, Cohen, West, & Aiken, 2003, Chapter 7, p 276
 CAW_7 <- 
 MODERATED_REGRESSION(data=data_Cohen_Aiken_West_2003_7, DV='yendu',
                      IV='xage',IV_range='tumble',
@@ -84,8 +83,7 @@ MODERATED_REGRESSION(data=data_Cohen_Aiken_West_2003_7, DV='yendu',
 
 REGIONS_OF_SIGNIFICANCE(model=CAW_7) 
 \donttest{
-head(data_Bauer_Curran_2005)
-
+# for Bauer & Curran, 2005, p. 395
 HSBmod <-nlme::lme(MathAch ~ Sector + CSES + CSES:Sector,
                    data = data_Bauer_Curran_2005, 
                    random = ~1 + CSES|School, method = "ML") 
@@ -97,7 +95,7 @@ REGIONS_OF_SIGNIFICANCE(model=HSBmod,
                         Yaxis_label='Slopes of School Sector on Math achievement')  
                         
 
-# moderated regression	-- with numeric values for IV_range & MOD_levels='AikenWest'       
+# for O'Connor & Dvorak, 2001, p. 17; with numeric values for IV_range & MOD_levels='AikenWest'       
 mharsh_agg <- 
   MODERATED_REGRESSION(data=data_OConnor_Dvorak_2001, DV='Aggressive_Behavior',
                        IV='Maternal_Harshness', IV_range=c(1,7.7), 

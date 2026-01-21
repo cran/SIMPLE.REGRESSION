@@ -15,17 +15,20 @@
     The output for some functions includes Bayes Factors and, if requested,  
     regression coefficients from Bayesian Markov Chain Monte Carlo (MCMC) analyses.
     There are numerous options for model plots.
-    \cr\cr The REGIONS_OF_SIGNIFICANCE function also provides
+    \cr\cr The REGIONS_OF_SIGNIFICANCE function provides
     Johnson-Neyman regions of significance and plots of interactions for both lm
-    and lme models (lme models are from the nlme package). There is also a 
-    function for partial and semipartial correlations and a function for 
-    conducting Cohen's set correlation analyses.
+    and lme models (lme models are from the nlme package). 
+    
+    There is also a function for partial and semipartial correlations and a  
+    function for conducting Cohen's set correlation analyses.
 }
 
 \references{
    {Bauer, D. J., & Curran, P. J. (2005). Probing interactions in fixed and multilevel 
 	regression: Inferential and graphical techniques. \emph{Multivariate Behavioral 
 	Research, 40(3),} 373-400.}
+\cr\cr {Cohen, J. (1982). Set correlation as a general multivariate data-analytic 
+  method. \emph{Multivariate Behavioral Research, 17(3)}, 301-341.}
 \cr\cr {Cohen, J., Cohen, P., West, S. G., & Aiken, L. S. (2003). \emph{Applied 
 	multiple regression/correlation analysis for the behavioral sciences} (3rd ed.). 
 	Lawrence Erlbaum Associates.}

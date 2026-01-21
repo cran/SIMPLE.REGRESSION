@@ -13,10 +13,17 @@ to IBM SPSS Statistics, STATA, and other statistical software.} Sage.
 \examples{
 head(data_Kremelburg_2011)
 \donttest{
+# for Kremelburg, 2011, p. 244
 LOGISTIC_REGRESSION(data = data_Kremelburg_2011, DV='OCCTRAIN',
-                    hierarchical=list( step1=c('AGE'), step2=c('EDUC','REALRINC')) )
-         
+                    forced = c('AGE','female','EDUC','REALRINC'))
+                    
+# for Kremelburg, 2011, p.262 & p. 282: poisson regression
 COUNT_REGRESSION(data=data_Kremelburg_2011, DV='OVRJOYED', 
-                 forced=c('AGE','EDUC','REALRINC','SEX_factor'))
+                 forced=c('AGE','EDUC','REALRINC','female'))
+                 
+# for Kremelburg, 2011, p. 266-267 & p. 284: negative binomial regression
+COUNT_REGRESSION(data=data_Kremelburg_2011, DV='HURTATWK', 
+                 forced=c('AGE','EDUC','REALRINC','female'),
+                 model_type = 'negbin')
 }
 }

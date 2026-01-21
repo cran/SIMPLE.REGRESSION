@@ -1,6 +1,6 @@
 
 
-PLOT_MODEL <- function(model, 
+PLOT_MODEL <- function(modobject, 
                        IV_focal_1, IV_focal_1_values=NULL, 
                        IV_focal_2=NULL, IV_focal_2_values=NULL, 
                        IVs_nonfocal_values = NULL,
@@ -19,115 +19,35 @@ PLOT_MODEL <- function(model,
   # cols_user <- c("ivory", 'black', "blue", 'cyan2', "red", 'limegreen', "yellow", 'blueviolet')
   
   
-  # kind of model 
-  if (inherits(model,"OLS_REGRESSION"))            kind = 'OLS'
-  if (inherits(model,"MODERATED_REGRESSION"))      kind = 'MODERATED'
-  if (inherits(model,"LOGISTIC_REGRESSION"))       kind = 'LOGISTIC'
-  if (inherits(model,"COUNT_REGRESSION"))          kind = model$kind
+  # kind of modobject 
+  if (inherits(modobject,"OLS_REGRESSION"))            kind = 'OLS'
+  if (inherits(modobject,"MODERATED_REGRESSION"))      kind = 'MODERATED'
+  if (inherits(modobject,"LOGISTIC_REGRESSION"))       kind = 'LOGISTIC'
+  if (inherits(modobject,"COUNT_REGRESSION"))          kind = modobject$kind
   
-  if (inherits(model,"MODERATED_REGRESSION"))   names(model)[5] <- 'modelMAIN'
+  # model variable names
+  if (kind == 'ZINFL' | kind == 'HURDLE') {
+    modvars <- names(attr(modobject$model$terms$full, "dataClasses"))
+  } else { modvars <- names(attr(modobject$model$terms, "dataClasses")) }
+  # modvars <- do.call("c", modobject$noms_list)
   
-  # # yhatR$se.fit is not available for 'zinfl_poisson' & 'zinfl_negbin' models 
-  # # so can't do regular CIs, must bootstrap
-  # bootstrap_flag <- FALSE
-  # if (!bootstrap & model_type == 'ZINFL')  bootstrap <- bootstrap_flag <- TRUE
+  DV <- modvars[1]
   
-  modeldata <- model$modeldata
+  IVnames <- modvars[-1]
+  # # remove offset variable (count regression) if there was one
+  # IVnames <- IVnames[!grepl('offset', IVnames)]
+  IVnames <- gsub("offset\\(", "", IVnames)
+  IVnames <- gsub("\\)", "", IVnames)
   
-  
-  # if (kind != 'OLS' & kind != 'LOGISTIC')  modeldata <- model$modeldata
-  # 
-  # if (kind == 'OLS' | kind == 'LOGISTIC')  modeldata <- model$modeldata_ORIG
-  
-  # if (kind != 'ZINFL' & kind != 'HURDLE')  modeldata <- model$modelMAIN$data
-  
-  # if (kind == 'ZINFL' | kind == 'HURDLE')  modeldata <- model$modeldata
-  
-  DV <- names(modeldata)[1]
-  
-  IVnames <- names(modeldata)[-1]
-  
-  
-  
-  #   if (kind != 'ZINFL' & kind != 'HURDLE') {
-  #     
-  #     modeldata <- model$modelMAIN$data
-  #   
-  #     DV <- names(modeldata)[1]
-  #     
-  #     IVnames <- names(modeldata)[-1]
-  #   }
-  #   
-  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
-  #     
-  #     modeldata <- model$modeldata
-  #     
-  #     
-  #     
-  #     
-  #     
-  #   
-  #   # DV name
-  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
-  #     DV <- names(attr(model$modelMAIN$terms$full, "dataClasses"))[1]
-  #   } else { DV <- colnames(modeldata)[1] }
-  #   
-  #   
-  #   names(attr(model$modelMAIN$terms, "dataClasses"))
-  #   
-  #   head(model$modelMAIN$data)
-  #   
-  #   
-  #   
-  #   # IV names
-  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
-  #     IVnames <- attr(model$modelMAIN$terms$full, "term.labels")
-  #   } else { IVnames <- attr(model$modelMAIN$terms, "term.labels") }
-  # 
-  #     
-  #   # check if there is an offset variable & add it to IVnames
-  #   if (kind == 'ZINFL' | kind == 'HURDLE') {
-  #     
-  #   # varnoms <- colnames(modeldata)
-  #   # 
-  #   # offset_any <- grepl( 'offset', varnoms, fixed = TRUE)
-  #   # 
-  #   # if (any(offset_any))  {
-  #   #   offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
-  #   #   # extract the real name of the offset variable
-  #   #   offset_nom <- varnoms[offset_pos]
-  #   #   IVnames <- c(IVnames, offset_nom)
-  #   # }
-  #   
-  #   
-  #   varnoms <- names(attr(model$modelMAIN$terms$full, "dataClasses"))
-  #   offset_any <- grepl( 'offset', varnoms, fixed = TRUE)
-  #   if (any(offset_any))  {
-  #     offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
-  #     # extract the real name of the offset variable
-  #     offset_nom <- varnoms[offset_pos]
-  #     offset_nom <- gsub("offset\\(", "", offset_nom)
-  #     offset_nom <- gsub("\\)", "", offset_nom)
-  #     IVnames <- c(IVnames, offset_nom)
-  #     
-  #     # sub the same name into modeldata
-  #     modeldata_noms <- names(modeldata)
-  #     offset_any <- grepl( 'offset', modeldata_noms, fixed = TRUE)
-  #     offset_pos <- which(grepl( 'offset', varnoms, fixed = TRUE) == TRUE)
-  #     colnames(modeldata)[offset_pos] <- offset_nom
-  #   }
-  # }
-  
-  
-  
+  modeldata <- modobject$modeldata[,c(DV, IVnames)]
   
   # remove interaction terms i.e., that contain :
   IVnames <- IVnames[!grepl(':', IVnames)]
   
   # are any of the predictors factors?
   if (kind == 'ZINFL' | kind == 'HURDLE') { 
-    list_xlevels <- model$modelMAIN$levels
-  } else { list_xlevels <- model$modelMAIN$xlevels }
+    list_xlevels <- modobject$model$levels
+  } else { list_xlevels <- modobject$model$xlevels }
   
   
   
@@ -156,8 +76,8 @@ PLOT_MODEL <- function(model,
     }
   }
   
-  # if IV_focal_1 is numeric & IV_focal_1_values were not provided
-  if (is.null(IV_focal_1_values)) {
+  # if IV_focal_1 is not a factor (so must be numeric) & IV_focal_1_values were not provided
+  if (!(IV_focal_1 %in% names(list_xlevels)) & is.null(IV_focal_1_values)) {
     
     IV_focal_1_range <- range(modeldata[IV_focal_1])
     
@@ -197,8 +117,9 @@ PLOT_MODEL <- function(model,
       }
     }
     
-    # if IV_focal_2 is numeric & IV_focal_2_values were not provided -- have to use just a few values
-    if (is.null(IV_focal_2_values)) {
+    # if IV_focal_2 is not a factor (so must be numeric)  & IV_focal_2_values 
+    # were not provided -- have to use just a few values
+    if (!(IV_focal_2 %in% names(list_xlevels)) & is.null(IV_focal_2_values)) {
       
       IV_focal_2_mn <- mean(unlist(modeldata[IV_focal_2]))
       
@@ -207,7 +128,6 @@ PLOT_MODEL <- function(model,
       IV_focal_2_values <- c((IV_focal_2_mn - IV_focal_2_sd), IV_focal_2_mn, (IV_focal_2_mn + IV_focal_2_sd))
     }
   }
-  
   
   
   # non focal IV values
@@ -232,7 +152,6 @@ PLOT_MODEL <- function(model,
     }
     
     # if IVs_nonfocal_values were provided by user, substitute them into IVs_nonfocal_values_list
-    # IVs_nonfocal_values = list( EDUC = 5)
     if (!is.null(IVs_nonfocal_values)) {
       
       # first check to make sure the names of the IVs_nonfocal_values are in the data
@@ -260,25 +179,28 @@ PLOT_MODEL <- function(model,
   
   testdata <- do.call(expand.grid, testdata)
   
-  # making sure that the order of the variables for testdata is the same as for model$modelMAIN
+  # making sure that the order of the variables for testdata is the same as for modobject$model
   testdata <- testdata[IVnames]
   
   head(testdata)
   
   # getting the predicted values & CIs
-  testdata <- cbind(testdata, predict_boc(modelMAIN=model$modelMAIN, modeldata=modeldata,
+  testdata <- cbind(testdata, predict_boc(model=modobject$model, modeldata=modeldata,
                                           newdata=testdata, CI_level=CI_level, bootstrap=bootstrap, 
-                                          kind=kind, family=model$family))
-  
-  head(testdata)
-  
+                                          kind=kind, family=modobject$family))
   
   # are CIs available?
-  if (anyNA(testdata)) { CIs <- FALSE } else {CIs <- TRUE}
+  # if (anyNA(testdata)) { CIs <- FALSE } else {CIs <- TRUE}
+  CIs <- TRUE
+  if (all(sapply(testdata, anyNA)) == FALSE)  CIs <- FALSE
   
-  
+
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar))
+  # on.exit(par(...,, add = TRUE))
+  
+  
+   
   
   if (plot_save == TRUE) {
     
@@ -337,12 +259,17 @@ PLOT_MODEL <- function(model,
       
       if (kind == 'POISSON' | kind == 'NEGBIN')  {
         
-        if (CIs) { ylim <- range(pretty(c(0, max(testdata$ci_ub))))   # c(0, max(testdata$ci_ub))
-        } else {   ylim <- range(pretty(c(0, max(modeldata[DV]))))   # c(0, max(modeldata[DV]))} 
-        }
+        # if (CIs) { ylim <- range(pretty(c(0, max(testdata$ci_ub))))   
+        # } else {   ylim <- range(pretty(c(0, max(testdata[DV_predicted])))) }  
+        
+        if (CIs) { ylim <- c(0, max(testdata$ci_ub))
+        } else {   ylim <- c(0, max(testdata[DV_predicted])) }
+        
+        # increase the upper ylim by 50%
+        ylim <- better_ylim(ylim, buffer = 0.50)
+        ylim[1] <- 0
       }
-      # if (kind != 'LOGISTIC')  ylim[2] <- ylim[2] + (ylim[2] * .05)
-    }
+     }
     
     if (is.null(ylab)) {
       
@@ -428,8 +355,12 @@ PLOT_MODEL <- function(model,
     colnames(testdata)[colnames(testdata) %in% 'yhat'] <- DV_predicted
     
     if (CIs) { ylim <- c(0, max(testdata$ci_ub))
-    } else {   ylim <- c(0, max(modeldata[DV]))} 
+    } else {   ylim <- c(0, max(testdata[DV_predicted])) }
     
+    # increase the upper ylim by 50%
+    ylim <- better_ylim(ylim, buffer = 0.50)
+    ylim[1] <- 0
+
     ylab <- DV
     
     title <- paste(DV, ':\nExpected counts', sep='')

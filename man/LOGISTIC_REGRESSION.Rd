@@ -6,13 +6,14 @@
    the model coefficients, likelihood ratio tests for the predictors, overdispersion 
    tests, model effect sizes, the correlation matrix for the model coefficients,
    collinearity statistics, and casewise regression diagnostics.}
-\usage{LOGISTIC_REGRESSION(data, DV, forced = NULL, hierarchical = NULL,
+\usage{LOGISTIC_REGRESSION(data, DV, forced = NULL, hierarchical = NULL, formula=NULL,
                     ref_category = NULL,
                     family = 'binomial',
-                    plot_type = 'residuals',
                     CI_level = 95,
-                    MCMC = FALSE,
-                    Nsamples = 4000,
+                    MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                        thin = 1, burnin = 1000, 
+                                        HDI_plot_est_type = 'standardized'),
+                    plot_type = 'residuals',
                     verbose = TRUE)
 }\arguments{
   \item{data}{
@@ -32,6 +33,10 @@
   hierarchical regression. The variables can be numeric or factors.
   \cr Example: hierarchical = list(step1=c('VarA', 'VarB'), step2=c('VarC', 'VarD'))}
 
+  \item{formula}{
+  \code{}(optional) Text for an R formula. Useful for testing for interactions.
+  \cr Example: formula = "Aggressive_Behavior ~ Maternal_Harshness * Resiliency"")}
+
   \item{ref_category}{
   \code{}(optional) The reference category for DV. 
   \cr Example: ref_category = 'alive'}
@@ -44,24 +49,32 @@
   }
   Example: family = 'quasibinomial'}
   
-  \item{plot_type}{
-  \code{}(optional) The kind of plots, if any. The options are:
-  \itemize{
-   \item{'residuals' (the default),}
-   \item{'diagnostics', for regression diagnostics, and}
-   \item{'none', for no plots.}
-  }
-  Example: plot_type = 'diagnostics'}
-
  \item{CI_level}{
   \code{}(optional) The confidence interval for the output, in whole numbers.
   The default is 95.}
 
- \item{MCMC}{
-  \code{}(logical) Should Bayesian MCMC analyses be conducted? The default is FALSE.}
+ \item{MCMC_options}{
+  \code{}(optional) A list specifying the following options for Bayesian MCMC
+  analyses: (1) "MCMC", Should MCMC analyses be conducted? The options are TRUE
+  or FALSE; (2) "Nsamples", for the number of iterations or samples from the
+  posterior distribution; (3) "thin", for the chain-thinning interval;
+  (4) "burnin", for the burnin period, i.e., the number of initial samples
+  that should be dropped from the chains; and (5) "HDI_plot_est_type", for
+  the kind of regression estimates that will appear in any requested HDI 
+  plots. The options are "standardized" or "raw".
+  \cr Example: MCMC_options = list(MCMC = TRUE, Nsamples = 10000, thin = 1, 
+                                   burnin = 1000, 
+                                   HDI_plot_est_type = 'standardized')}
 
- \item{Nsamples}{
-  \code{}(optional) The number of samples for MCMC analyses. The default is 10000.}
+  \item{plot_type}{
+  \code{}(optional) The kind of plots, if any. The options are:
+  \itemize{
+   \item{'residuals' (the default),}
+   \item{'diagnostics', for regression diagnostics,}
+    \item{'Bayes_HDI' (for MCMC posterior distributions), and}
+   \item{'none', for no plots.}
+  }
+  Example: plot_type = 'diagnostics'}
 
   \item{verbose}{
   \code{}(optional) Should detailed results be displayed in console? \cr The options are: 
@@ -95,11 +108,13 @@
 }
 \value{An object of class "LOGISTIC_REGRESSION". The object is a list containing the
 	following possible components:
-\item{modelMAIN}{All of the glm function output for the regression model.}
-\item{modelMAINsum}{All of the summary.glm function output for the regression model.}
+\item{model}{All of the glm function output for the regression model.}
+\item{modelsum}{All of the summary.glm function output for the regression model.}
 \item{modeldata}{All of the predictor and outcome raw data that were used in the model,
 	along with regression diagnostic statistics for each case.}
 \item{collin_diags}{Collinearity diagnostic coefficients for models without interaction terms.}
+\item{chain_dat}{The MCMC chains.}
+\item{Bayes_HDIs}{The Bayesian HDIs.}
 }
 \references{
        {Dunn, P. K., & Smyth, G. K. (2018). \emph{Generalized linear models 
@@ -130,14 +145,18 @@
 }
 \author{Brian P. O'Connor}
 \examples{
-# forced (simultaneous) entry
+# Meyers, 2013, p. 263: forced (simultaneous) entry
 LOGISTIC_REGRESSION(data = data_Meyers_2013, DV='graduated', 
                     forced=c('sex','family_encouragement'),
                     plot_type = 'diagnostics')
 \donttest{	
-# hierarchical entry, and using family = "quasibinomial"
+# for Kremelburg, 2011, p. 244: hierarchical entry, with Bayesian MCMC analyses & HDI plots
 LOGISTIC_REGRESSION(data = data_Kremelburg_2011, DV='OCCTRAIN',
-                    hierarchical=list( step1=c('AGE'), step2=c('EDUC','REALRINC')),
-                    family = "quasibinomial") 
+                    hierarchical=list( step1=c('AGE', 'female'), 
+                                       step2=c('EDUC','REALRINC')),
+                    MCMC_options = list(MCMC = TRUE, Nsamples = 10000, 
+                                        thin = 1, burnin = 1000, 
+                                        HDI_plot_est_type = 'raw'),
+                    plot_type = 'Bayes_HDI')
 }
 }

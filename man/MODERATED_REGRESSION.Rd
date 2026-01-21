@@ -13,13 +13,15 @@
     Bayesian Markov Chain Monte Carlo (MCMC) analyses.}
 \usage{MODERATED_REGRESSION(data, DV, IV, MOD,
                      IV_type = 'numeric', IV_range = 'tumble',
-                     MOD_type='numeric', MOD_levels='quantiles', MOD_range=NULL,
+                     MOD_type='numeric', MOD_levels='quantiles', 
+                     MOD_range=NULL, MOD_reflevel=NULL,
                      quantiles_IV = c(.1, .9), quantiles_MOD = c(.25, .5, .75),
                      COVARS = NULL,
                      center = TRUE, 
                      CI_level = 95,
-                     MCMC = FALSE,
-                     Nsamples = 10000,
+                     MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                         thin = 1, burnin = 1000, 
+                                         HDI_plot_est_type = 'raw'),
                      plot_type = 'residuals', plot_title=NULL, DV_range = NULL,
                      Xaxis_label = NULL, Yaxis_label=NULL, legend_label=NULL,
                      JN_type = 'Huitema', 
@@ -82,7 +84,15 @@
   NULL (the default), in which case the minimum and maximum MOD values will be used; and
   a vector of two user-provided values. 
   \cr Example: MOD_range = c(1, 10)}
-  	    
+
+ \item{MOD_reflevel}{
+  \code{}(optional) The level of MOD, if it is a factor, to be used as the baseline
+  in the factor dummy codes. If a baseline value is not provided, and if the 
+  terms "control" or "Control" or "baseline" or "Baseline" appear in the names 
+  of a factor level, then that factor level will be used as the baseline; 
+  otherwise the baseline will be the earliest of the alphabetically-
+  ordered factor levels.}
+
   \item{quantiles_IV}{
   \code{}(optional) The quantiles of the independent variable to be used as the IV range for 
   a moderated regression plot.
@@ -107,11 +117,18 @@
   CI_level is also used in the Johnson-Neyman regions of significance computations.
   The default is 95.}
 
- \item{MCMC}{
-  \code{}(logical) Should Bayesian MCMC analyses be conducted? The default is FALSE.}
-
- \item{Nsamples}{
-  \code{}(optional) The number of samples for MCMC analyses. The default is 10000.}
+ \item{MCMC_options}{
+  \code{}(optional) A list specifying the following options for Bayesian MCMC
+  analyses: (1) "MCMC", Should MCMC analyses be conducted? The options are TRUE
+  or FALSE; (2) "Nsamples", for the number of iterations or samples from the
+  posterior distribution; (3) "thin", for the chain-thinning interval;
+  (4) "burnin", for the burnin period, i.e., the number of initial samples
+  that should be dropped from the chains; and (5) "HDI_plot_est_type", for
+  the kind of regression estimates that will appear in any requested HDI 
+  plots. The options are "standardized" or "raw".
+  \cr Example: MCMC_options = list(MCMC = TRUE, Nsamples = 10000, thin = 1, 
+                                   burnin = 1000, 
+                                   HDI_plot_est_type = 'raw')}
 
   \item{plot_type}{
   \code{}(optional)  The kind of plot, if any. The options are:
@@ -119,7 +136,8 @@
     \item{'residuals' (the default)}
     \item{'diagnostics' (for regression diagnostics)}
     \item{'interaction' (for a traditional moderated regression interaction plot)}
-    \item{'regions' (for a moderated regression Johnson-Neyman regions of significance plot), and}
+    \item{'regions' (for a moderated regression Johnson-Neyman regions of significance plot),}
+    \item{'Bayes_HDI' (for MCMC posterior distributions), and}
     \item{'none' (for no plots).}
   }
   Example: plot_type = 'diagnostics'}
@@ -155,13 +173,20 @@
   TRUE (default) or FALSE. If TRUE, plots of residuals are also produced.}
 }
 \details{
-	The Bayesian MCMC analyses can be time-consuming for larger datasets. The MCMC 
-	analyses are conducted using functions, and their default settings, from the 
-	BayesFactor package (Morey & Rouder, 2024).
+	The MCMC analyses are conducted using functions, and their default settings,  
+	from the rstanarm	package (Goodrich, Gabry, Ali, & Brilleman, 2024).  
+	MCMC analyses can be time-consuming for larger datasets.
+	
+	The Bayes Factor analyses are conducted using functions, and their default  
+	settings, from the BayesFactor package (Morey & Rouder, 2024). 
+	
+  The Bayes factor values for the predictor variables are based solely on the
+  predictor t & df values, using the ttest.tstat function from the BayesFactor
+  package.
 }
 \value{An object of class "MODERATED_REGRESSION". The object is a list containing the
 	following possible components:
-\item{modelMAINsum}{All of the summary.lm function output for the regression model 
+\item{modelsum}{All of the summary.lm function output for the regression model 
 	without interaction terms.}
 \item{anova_table}{Anova Table (Type III tests).}
 \item{mainRcoefs}{Predictor coefficients for the model without interaction terms.}
@@ -177,6 +202,8 @@
 \item{plotdon}{The plot data for a moderated regression.}
 \item{JN.data}{The Johnson-Neyman results for a moderated regression.}
 \item{ros}{The Johnson-Neyman regions of significance for a moderated regression.}
+\item{chain_dat}{The MCMC chains.}
+\item{Bayes_HDIs}{The Bayesian HDIs.}
 }
 \references{
        {Bodner, T. E. (2016). Tumble graphs: Avoiding misleading end point extrapolation when  
@@ -187,6 +214,9 @@
 	    Lawrence Erlbaum Associates.}
 \cr\cr {Darlington, R. B., & Hayes, A. F. (2017). \emph{Regression analysis and linear models: 
 	    Concepts, applications, and implementation.} Guilford Press.}
+\cr\cr {Goodrich, B., Gabry, J., Ali, I., & Brilleman, S. (2024). \emph{rstanarm:  
+        Bayesian applied regression modeling via Stan.} R package version 2.32.1, 
+        https://mc-stan.org/rstanarm/.}
 \cr\cr {Hayes, A. F. (2018a). \emph{Introduction to mediation, moderation, and conditional process 
 	    analysis: A regression-based approach} (2nd ed.). Guilford Press.}
 \cr\cr {Hayes, A. F., & Montoya, A. K. (2016). A tutorial on testing, visualizing, and probing 
@@ -204,7 +234,7 @@
 }
 \author{Brian P. O'Connor}
 \examples{
-# moderated regression	-- with IV_range = 'AikenWest'
+# for Lorah & Wong, 2018, p. 630: with IV_range = 'AikenWest'
 MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden',  MOD='belong_thwarted', 
                      IV_range='AikenWest',
                      MOD_levels='quantiles',
@@ -212,15 +242,19 @@ MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden',  MOD
                      center = TRUE, COVARS='depression', 
                      plot_type = 'interaction', plot_title=NULL, DV_range = c(1,1.25))
 \donttest{
-# moderated regression	-- with  IV_range = 'tumble'
+# for Lorah & Wong, 2018, p. 630: with IV_range = 'tumble', & 
+# with Bayesian MCMC analyses & HDI plots
 MODERATED_REGRESSION(data=data_Lorah_Wong_2018, DV='suicidal', IV='burden', MOD='belong_thwarted', 
                      IV_range='tumble',
                      MOD_levels='quantiles',
                      quantiles_IV=c(.1, .9), quantiles_MOD=c(.25, .5, .75),
                      center = TRUE, COVARS='depression', 
-                     plot_type = 'interaction', plot_title=NULL, DV_range = c(1,1.25)) 
+                     MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                         thin = 1, burnin = 1000, 
+                                         HDI_plot_est_type = 'raw'),
+                      plot_type = 'Bayes_HDI', plot_title=NULL, DV_range = c(1,1.25))
 
-# moderated regression	-- with numeric values for IV_range & MOD_levels='AikenWest'       
+# for O'Connor & Dvorak, 2001, p. 17; with numeric values for IV_range & MOD_levels='AikenWest'       
 MODERATED_REGRESSION(data=data_OConnor_Dvorak_2001, DV='Aggressive_Behavior', 
                      IV='Maternal_Harshness', MOD='Resiliency', 
                      IV_range=c(1,7.7), 

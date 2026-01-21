@@ -14,6 +14,7 @@ models. \emph{Psychology of Addictive Behaviors, 36(3),} 284-295.
 \examples{
 head(data_Halvorson_2022_log)
 \donttest{
+# replicating Figure 3, p 292
 log_Halvorson <-
   LOGISTIC_REGRESSION(data=data_Halvorson_2022_log, DV='Y', forced=c('x1','x2'), 
                       plot_type = 'diagnostics')
@@ -22,10 +23,10 @@ log_Halvorson <-
 x2_high <- mean(data_Halvorson_2022_log$x1) + sd(data_Halvorson_2022_log$x1)
 x2_low  <- mean(data_Halvorson_2022_log$x1) - sd(data_Halvorson_2022_log$x1)
 
-PLOT_MODEL(model = log_Halvorson, 
+PLOT_MODEL(modobject = log_Halvorson, 
            IV_focal_1 = 'x1',   
            IV_focal_2 = 'x2',  IV_focal_2_values = c(x2_low, x2_high),
-           bootstrap=FALSE, N_sims=1000, CI_level=95, 
+           bootstrap=TRUE, N_sims=1000, CI_level=95, 
            ylim = c(0, 1), 
            xlab = 'x1',
            ylab = 'Expected Probability', 

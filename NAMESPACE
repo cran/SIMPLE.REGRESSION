@@ -4,7 +4,7 @@ export(OLS_REGRESSION, SIMPLE.REGRESSION, REGIONS_OF_SIGNIFICANCE, PARTIAL_COR,
 
 importFrom("nlme", lme, getData, fixef)
 
-importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova,
+importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova, acf,
            as.formula, lm, pf, predict, pt, qf, qt, quantile, terms, 
            vcov, contrasts, cooks.distance, covratio, dfbeta, dffits,
              hatvalues, lowess, model.matrix, model.frame, qqline, qqnorm,
@@ -15,7 +15,7 @@ importFrom("stats", cor, cov, na.omit, sd, qnorm, confint, anova,
              density, pbinom, runif, loess.smooth, pbeta, ppois, formula, contr.treatment,
              "contrasts<-")
 
-importFrom("graphics", lines, par, points, layout, layout.show,
+importFrom("graphics", lines, par, points, layout, layout.show, text,
            abline, legend, rect, hist, arrows, axis, barplot, grid, polygon)
 
 importFrom("utils", head, packageDescription, tail)

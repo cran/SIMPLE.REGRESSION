@@ -1,27 +1,13 @@
 
-# 
-# forced=NULL; hierarchical=NULL;
-# model_type = 'poisson';
-# offset = NULL;
-# plot_type = 'residuals';
-# CI_level = 95;
-# MCMC = FALSE;
-# Nsamples = 4000;
-# GoF_model_types = TRUE;
-# verbose=TRUE
-# 
-# data=data_Orme_2009_5; DV='NumberAdopted'; forced=c('Married'); 
-# offset='lnYearsFostered'
-# 
 
-
-COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
+COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL, formula=NULL,
                               model_type = 'poisson',
                               offset = NULL,
-                              plot_type = 'residuals',
                               CI_level = 95,
-                              MCMC = FALSE,
-                              Nsamples = 4000,
+                              MCMC_options = list(MCMC = FALSE, Nsamples = 10000, 
+                                                  thin = 1, burnin = 1000, 
+                                                  HDI_plot_est_type = 'raw'),
+                              plot_type = 'residuals',
                               GoF_model_types = TRUE,
                               verbose=TRUE ) {
 
@@ -33,7 +19,6 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   # The p-values and S.E.s match those from SPSS when the SPSS
   # parameter estimation method is set to 'Hybrid' and the Scale Parameter Method
   # is set to 'Pearson Chi-square'
-  
   
   "<-<-" <- NULL   # need this or else get "no visible global function definition for '<-<-' " on R CMD check
   
@@ -61,7 +46,15 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     if (!is.null(offset)) message('\nThe offset variable is: ', offset)
   }
   
-  if (!is.null(forced))  {
+  if (!is.null(formula)) {
+    formula_vars <- formula_check(formula=formula, data = data)
+    DV <- formula_vars$DV
+    forced <- formula_vars$forced
+    formule <- formula_vars$formule
+    hierarchical <- NULL
+  }
+
+    if (!is.null(forced))  {
     donnes <- data[,c(DV,forced,offset)]	
     if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
   }
@@ -71,10 +64,10 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     if (anyNA(donnes)) {donnes <- na.omit(donnes); NAflag = TRUE} else {NAflag = FALSE}	
   }
   
-  if (is.null(forced) & is.null(hierarchical) ) {
-    message('\n\nThe data for the analyses were not properly specified.\n')
-    message('\nThe forced & hierarchical arguments were both NULL (i.e, not provided). Expect errors.\n')
-  }
+  # if (is.null(forced) & is.null(hierarchical) ) {
+  #   message('\n\nThe data for the analyses were not properly specified.\n')
+  #   message('\nThe forced & hierarchical arguments were both NULL (i.e, not provided). Expect errors.\n')
+  # }
   
   if (NAflag) cat('\nCases with missing values were found and removed from the data matrix.\n')
   
@@ -86,97 +79,22 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   if (!is.null(offset))        allIVnoms <- c(allIVnoms, offset)
   allIVnoms <- allIVnoms[-1]
   
-  donnesMOD <- donnes[c(DV,allIVnoms,offset)]  # a version of donnes that contains only the variables in the analyses
+  donnes <- donnes[c(DV,allIVnoms,offset)]  # a version of donnes that contains only the variables in the analyses
   
   
-  # converting character IVs to factors
-  for (lupe in 1:length(allIVnoms)) {
-    if (is.character(donnesMOD[,allIVnoms[lupe]])) {
-      message('\n', allIVnoms[lupe], ' is a character variable. It will be converted into a factor.\n')
-      donnesMOD[,allIVnoms[lupe]] <- as.factor(donnesMOD[,allIVnoms[lupe]])
-    }
-  }
-  
-  # check if all IVs are either numeric or factors
-  IVclasses <- sapply(donnesMOD[,allIVnoms], class)
-  if (!all(IVclasses == 'numeric' | IVclasses == 'integer' | IVclasses == 'factor')) {
-    message('\n The following variables are not numeric, integers, or factors. Expect errors.')
-    names(
-      IVclasses[IVclasses != 'numeric' &  IVclasses != 'integer' & IVclasses != 'factor' ])
-  }
+  # clean up IV factors, contrasts
+  IV_type_cleanup(donnes, allIVnoms) 
   
   
-  # descriptives
-  if (verbose) {
-    # descriptives for numeric variables
-    donnesNUM <- donnesMOD[,allIVnoms]
-    donnesNUM <- donnesNUM[sapply(donnesNUM,is.numeric)] # selecting only numeric variables
-    if (ncol(donnesNUM) != 0) {
-      minmax <- t(apply(donnesNUM, 2, range))
-      descs <- data.frame(Mean=colMeans(donnesNUM), SD=apply(donnesNUM, 2, sd), 
-                          Min=minmax[,1], Max=minmax[,2]) 
-      message('\n\nDescriptive statistics for the numeric variables:\n')
-      print(round(descs,2), print.gap=4)
-    }
-    
-    # frequencies for factors
-    donnesFAC <- donnesMOD[,allIVnoms]
-    donnesFAC <- donnesFAC[sapply(donnesFAC,is.factor)] # selecting only factor variables
-    if (ncol(donnesFAC) != 0) {
-      message('\n\nCategory frequencies for the factor variables:\n')
-      print(apply((donnesFAC), 2, table))
-    }
-    
-    rm(donnesNUM, donnesFAC)
-  }
-  
-  
-  # test if factor variables have contrasts; if not, add contrasts with names
-  IV_factors <- IVclasses[IVclasses == 'factor' ]
-  if (length(IV_factors) > 0) {
-    for (lupe in 1:length(IV_factors)) {
-      
-      if (is.null(attr( donnesMOD[,names(IV_factors[lupe])], "contrasts" ))) {
-        
-        fac_levels <- levels(donnesMOD[,names(IV_factors[lupe])])
-        
-        # print(fac_levels)
-        # print(lupe)
-        
-        # The baseline group is based on alphabetic/numerical order, unless the terms "control"
-        # or "Control" or "baseline" or "Baseline" appear in the names of a factor
-        # level, in which case that factor level is used as the dummy codes baseline.
-        if (length(grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)) > 0) {
-          base_level <- grep(pattern = 'Control|control|baseline|Baseline', x = fac_levels)
-        } else {
-          base_level <- order(fac_levels, decreasing = FALSE, na.last = TRUE)[1]
-        }
-        
-        custom_contrasts <- contr.treatment(length(fac_levels), base = base_level)
-        
-        colnames(custom_contrasts) <-
-          better_contrast_noms(contrasts(donnesMOD[,names(IV_factors[lupe])]))
-        
-        # apply the contrast matrix to the factor variable
-        contrasts(donnesMOD[,names(IV_factors[lupe])]) <- custom_contrasts
-      }
-    }
-  }
-  
-  # display the contrasts for factors
-  if (verbose & length(IV_factors) > 0) {
-    for (lupe in 1:length(IV_factors)) {
-      message('\nThe contrasts for ', names(IV_factors[lupe]), ' are:\n')
-      print(contrasts(donnesMOD[,names(IV_factors[lupe])]), print.gap=4)
-    }
-  }
+  # predictor descriptives
+  if (verbose)  descriptives(donnes, allIVnoms)
   
   
   if (verbose) {
     message('\nDV frequencies:')
-    print(table(donnesMOD[,DV]))
+    print(table(donnes[,DV]))
     # histogram with a normal curve
-    # histogram <- hist(donnesMOD[,DV], breaks=20, col="red", xlab=DV, main="Histogram") 
+    # histogram <- hist(donnes[,DV], breaks=20, col="red", xlab=DV, main="Histogram") 
   }
   
   
@@ -191,21 +109,21 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                                   paste(" + offset(", offset, ")")) )
   
   if (kind == 'POISSON')
-    modelNULL <- glm(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE, 
+    modelNULL <- glm(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE, 
                      family = family)   # (link="log"))
   
   if (kind == 'NEGBIN') {
-    # modelNULL <- MASS::glm.nb(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE)
-    modelNULL <- glm(formNULL, data = donnesMOD, model=TRUE, x=TRUE, y=TRUE, 
+    # modelNULL <- MASS::glm.nb(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE)
+    modelNULL <- glm(formNULL, data = donnes, model=TRUE, x=TRUE, y=TRUE, 
                      family = MASS::negative.binomial(1, link="log"))
   }
   
   if (kind == 'ZINFL')
-    modelNULL <- pscl::zeroinfl(formNULL, data = donnesMOD, 
+    modelNULL <- pscl::zeroinfl(formNULL, data = donnes, 
                                 model=TRUE, x=TRUE, y=TRUE, dist = family)
   
   if (kind == 'HURDLE')
-    modelNULL <- pscl::hurdle(formNULL, data = donnesMOD, 
+    modelNULL <- pscl::hurdle(formNULL, data = donnes, 
                               model=TRUE, x=TRUE, y=TRUE, dist = family)
   
   if (kind == 'ZINFL' | kind == 'HURDLE') 
@@ -228,7 +146,8 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     exp_B_CIs <- exp(confint.default(modelNULL))
     
     modelNULLsum$coefs <- cbind(modelNULLsum$coefficients, exp_B, matrix(exp_B_CIs, nrow=1))
-    colnames(modelNULLsum$coefs) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    # colnames(modelNULLsum$coefs) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    colnames(modelNULLsum$coefs) <- c('B', 'SE', 'z', 'p', 'IRR', 'IRR ci_lb', 'IRR ci_ub')
     
     if (verbose) {
       message('\n\nVariables in the Equation -- NULL model:\n')
@@ -237,7 +156,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     }
   }
   
-  if (kind == 'ZINFL' | kind == 'HURDLE') {         # FIXXX?   
+  if (kind == 'ZINFL' | kind == 'HURDLE') {    
     
     exp_B <- exp(unlist(modelNULL$coefficients))
     
@@ -245,11 +164,13 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     modelNULLsum$coefs$count <- 
       cbind( matrix(modelNULLsum$coefficients$count[1,],nrow=1), exp_B[1], matrix(exp_B_CIs[1,], nrow=1))
-    colnames(modelNULLsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    # colnames(modelNULLsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    colnames(modelNULLsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'IRR', 'IRR ci_lb', 'IRR ci_ub')
     
     modelNULLsum$coefs$zero <- 
       cbind( matrix(modelNULLsum$coefficients$zero[1,],nrow=1), exp_B[2], matrix(exp_B_CIs[2,], nrow=1))
-    colnames(modelNULLsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    # colnames(modelNULLsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+    colnames(modelNULLsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'IRR', 'IRR ci_lb', 'IRR ci_ub')
     
     if (verbose) {
       message('\n\nVariables in the Equation -- NULL model, count portion:\n')
@@ -269,7 +190,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   for (lupe in 1:length(hierarchical)) {
     
     # keeping info on previous model in lupe for Rsq change stats
-    if (lupe > 1) prevModel <- modelMAIN
+    if (lupe > 1) prevModel <- model
     
     if (verbose) message('\n\n\nBlock ', lupe)	
     
@@ -277,68 +198,78 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     if (lupe > 1) preds <- c(preds, unlist(hierarchical[lupe]))
     
-    donnesH <- donnesMOD[,c(DV,preds,offset)]
+    donnesHIER <- donnes[,c(DV,preds,offset)]
     
-    if (is.null(offset))
-      formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
-    
-    if (!is.null(offset))
-      formMAIN <- as.formula( paste(paste(DV, paste(preds, collapse=" + "), sep=" ~ "), 
+    # noms_list <- list(DV=DV, IV=preds)
+
+    if (is.null(offset) & is.null(formula))
+      formule <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
+
+    if (!is.null(offset) & is.null(formula))
+      formule <- as.formula( paste(paste(DV, paste(preds, collapse=" + "), sep=" ~ "), 
                                     paste(" + offset(",  offset, ")")) )
+
+    # if (!is.null(formula)) 
+    #   formule <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ ")) 
     
+    
+        
     if (kind == 'POISSON')
-      modelMAIN <- glm(formMAIN, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
+      model <- glm(formule, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, family = family)
     
     if (kind == 'NEGBIN') {
-      modelMAIN <- MASS::glm.nb(formMAIN, data = donnesH, model=TRUE, x=TRUE, y=TRUE)
-      # modelMAIN <- glm(formMAIN, data = donnesH, model=TRUE, x=TRUE, y=TRUE, 
+      model <- MASS::glm.nb(formule, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE)
+      # model <- glm(formule, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, 
       #                  family = MASS::negative.binomial(1, link="log")) 
     }
     
     if (kind == 'ZINFL')
-      modelMAIN <- pscl::zeroinfl(formMAIN, data = donnesH, 
+      model <- pscl::zeroinfl(formule, data = donnesHIER, 
                                   model=TRUE, x=TRUE, y=TRUE, dist = family)
     
     if (kind == 'HURDLE')
-      modelMAIN <- pscl::hurdle(formMAIN, data = donnesH, 
+      model <- pscl::hurdle(formule, data = donnesHIER, 
                                 model=TRUE, x=TRUE, y=TRUE, dist = family)
     
     if (kind == 'ZINFL' | kind == 'HURDLE')
-      modelMAIN$deviance <- -2 * modelMAIN$loglik
+      model$deviance <- -2 * model$loglik
     
-    modelMAINsum <- summary(modelMAIN, correlation=TRUE)
+    modelsum <- summary(model, correlation=TRUE)
     
-    # exponentiated coefficients, & adding them to modelMAINsum$coefs
+    # exponentiated coefficients, & adding them to modelsum$coefs
     
     if (kind == 'POISSON' | kind == 'NEGBIN') {
-      exp_B <- exp(modelMAIN$coefficients)
-      exp_B_CIs <- exp(confint.default(modelMAIN))
+      exp_B <- exp(model$coefficients)
+      exp_B_CIs <- exp(confint.default(model))
       
-      modelMAINsum$coefficients <- cbind(modelMAINsum$coefficients, exp_B, exp_B_CIs)
-      colnames(modelMAINsum$coefficients) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      modelsum$coefficients <- cbind(modelsum$coefficients, exp_B, exp_B_CIs)
+      # colnames(modelsum$coefficients) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      colnames(modelsum$coefficients) <- c('B', 'SE', 'z', 'p', 'IRR', 'IRR ci_lb', 'IRR ci_ub')
     }
     
     if (kind == 'ZINFL' | kind == 'HURDLE') {
       
-      exp_B_count <- exp(modelMAIN$coefficients$count)
-      exp_B_zero  <- exp(modelMAIN$coefficients$zero)
+      exp_B_count <- exp(model$coefficients$count)
+      exp_B_zero  <- exp(model$coefficients$zero)
       
-      exp_B_CIs <- exp(confint.default(modelMAIN))
+      exp_B_CIs <- exp(confint.default(model))
       
       # dropping the row from the count coefs
-      modCcoefs <- modelMAINsum$coefficients$count[row.names(modelMAINsum$coefficients$count) != "Log(theta)",]
-      modelMAINsum$coefs$count <- 
+      modCcoefs <- modelsum$coefficients$count[row.names(modelsum$coefficients$count) != "Log(theta)",]
+      modelsum$coefs$count <- 
         cbind(modCcoefs, exp_B_count, exp_B_CIs[grepl("count", rownames(exp_B_CIs)),])
-      colnames(modelMAINsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      # colnames(modelsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      colnames(modelsum$coefs$count) <- c('B', 'SE', 'z', 'p', 'IRR', 'IRR ci_lb', 'IRR ci_ub')
       
-      modelMAINsum$coefs$zero <- 
-        cbind(modelMAINsum$coefficients$zero, exp_B_zero, exp_B_CIs[grepl("zero", rownames(exp_B_CIs)),])
-      colnames(modelMAINsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      modelsum$coefs$zero <- 
+        cbind(modelsum$coefficients$zero, exp_B_zero, exp_B_CIs[grepl("zero", rownames(exp_B_CIs)),])
+      # colnames(modelsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
+      colnames(modelsum$coefs$zero) <- c('B', 'SE', 'z', 'p', 'OR', 'OR ci_lb', 'OR ci_ub')
     }
     
     
     # Goodness of Fit
-    GoFs <- GoF_stats(model = modelMAIN)
+    GoFs <- GoF_stats(model = model)
     
     if (verbose) {
       message('\n\nGoodness of Fit:')
@@ -370,19 +301,19 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     # is much larger than 1.
     
     # Overdispersion test based on the model deviance
-    dispersion_ratio_dev <- modelMAIN$deviance / modelMAIN$df.residual
-    p_deviance <-  1 - pchisq(modelMAIN$deviance, modelMAIN$df.residual)
+    dispersion_ratio_dev <- model$deviance / model$df.residual
+    p_deviance <-  1 - pchisq(model$deviance, model$df.residual)
     if (verbose) {
       message('\n\n\nOverdispersion test based on the model deviance:')
       cat('\n    Dispersion Ratio: ', round(dispersion_ratio_dev,3),
-          '    Statistic = ', round(modelMAIN$deviance,3),
+          '    Statistic = ', round(model$deviance,3),
           '    p = ', round(p_deviance,5))
     }
     
     # Overdispersion test based on the Pearson Chi-Square
-    X2_Pearson <- sum(residuals(modelMAIN, type = "pearson")^2)
-    dispersion_ratio_X2 <- X2_Pearson / modelMAIN$df.residual
-    p_X2 <-  1 - pchisq(X2_Pearson, modelMAIN$df.residual)
+    X2_Pearson <- sum(residuals(model, type = "pearson")^2)
+    dispersion_ratio_X2 <- X2_Pearson / model$df.residual
+    p_X2 <-  1 - pchisq(X2_Pearson, model$df.residual)
     if (verbose) {
       message('\n\nOverdispersion test based on the Pearson Chi-Square:')
       cat('\n    Dispersion Ratio: ', round(dispersion_ratio_X2,3),
@@ -392,9 +323,9 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     # Overdispersion test based on the just the DV
     # adapted from qcc.overdispersion.test
-    N <- length(donnesMOD[,DV])
-    var_observed <- var(donnesMOD[,DV])
-    var_theoretical <- mean(donnesMOD[,DV])
+    N <- length(donnes[,DV])
+    var_observed <- var(donnes[,DV])
+    var_theoretical <- mean(donnes[,DV])
     D <- (var_observed * (N - 1)) / var_theoretical
     ratio_obs.theo <- var_observed / var_theoretical
     pvalue <- 1 - pchisq(D, N - 1)
@@ -406,14 +337,15 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     }
     
     # Model Effect Sizes
-    model_dev <- modelMAIN$deviance 
-    # null_dev <- modelMAIN$null.deviance 
-    model_N <- length(modelMAIN$fitted.values)
+    model_dev <- model$deviance 
+    # null_dev <- model$null.deviance 
+    model_N <- length(model$fitted.values)
     Rsq_HS <-  1 - model_dev / null_dev
     Rsq_CS <- 1- exp (-(null_dev - model_dev) / model_N)
     Rsq_NG <- Rsq_CS / (1 - ( exp(-(null_dev / model_N))))
     model_sumES <- data.frame(Rsq_CS, Rsq_NG, Rsq_HS)
     colnames(model_sumES) <- c('Rsq. Cox & Snell', 'Rsq. Nagelkerke', 'Rsq. Hosmer & Lemeshow')
+    
     if (verbose) {
       message('\n\n\nModel Effect Sizes:\n')
       print(round(model_sumES,3), print.gap=4, row.names = FALSE)
@@ -424,25 +356,25 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       
       if (kind == 'POISSON' | kind == 'NEGBIN') {
         message('\nComparisons of the current model against the previous model:\n')
-        print(anova(prevModel, modelMAIN, test="Chisq"))
+        print(anova(prevModel, model, test="Chisq"))
       }
       
       if (kind == 'ZINFL' |  kind == 'HURDLE') {
         
         # # LRT to compare these models
-        # lmtest::lrtest(modelMAIN, prevModel)
-        # lmtest::waldtest(modelMAIN, prevModel)
+        # lmtest::lrtest(model, prevModel)
+        # lmtest::waldtest(model, prevModel)
         
         # Compare the current model to a null model without predictors using 
         # chi-squared test on the difference of log likelihoods
-        diff_logliks <- as.numeric(2 * (logLik(modelMAIN) - logLik(prevModel)))
+        diff_logliks <- as.numeric(2 * (logLik(model) - logLik(prevModel)))
         p <- pchisq(diff_logliks, df = length(preds), lower.tail = FALSE) 
         message('\nComparisons of the current model against the previous model:\n')
         message('\n   Difference in the log likelihoods = ', round(diff_logliks,3), 
                 '    df = ', length(preds), '     p = ' , round(p,8), '\n\n')
         
         # Which model should we choose?   https://rpubs.com/lucymark2013/817199
-        print(pscl::vuong(modelMAIN, prevModel))
+        print(pscl::vuong(model, prevModel))
       }
     }
     
@@ -451,18 +383,19 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       
       if (kind == 'POISSON' | kind == 'NEGBIN') {
         message('\n\nParameter Estimates:\n')
-        modelMAINsum$coefs <- round_boc(modelMAINsum$coefficients, round_non_p = 3, round_p = 6) 
-        print(round_boc(modelMAINsum$coefs,3), print.gap=4)
+        modelsum$coefs <- round_boc(modelsum$coefficients, round_non_p = 3, round_p = 6) 
+        print(round_boc(modelsum$coefs,3), print.gap=4)
+        message('\nIRR = incidence rate ratio\n')
       }
       
       if (kind == 'ZINFL' | kind == 'HURDLE') {
         message('\n\nVariables in the Equation -- count portion of the model:\n')
-        modelMAINsum$coefs$count <- round_boc(modelMAINsum$coefs$count, round_non_p = 3, round_p = 6) 
-        print(round_boc(modelMAINsum$coefs$count,3), print.gap=4)
+        modelsum$coefs$count <- round_boc(modelsum$coefs$count, round_non_p = 3, round_p = 6) 
+        print(round_boc(modelsum$coefs$count,3), print.gap=4)
         
         message('\n\nVariables in the Equation -- zero portion of the model:\n')
-        modelMAINsum$coefs$zero <- round_boc(modelMAINsum$coefs$zero, round_non_p = 3, round_p = 6) 
-        print(round_boc(modelMAINsum$coefs$zero,3), print.gap=4)
+        modelsum$coefs$zero <- round_boc(modelsum$coefs$zero, round_non_p = 3, round_p = 6) 
+        print(round_boc(modelsum$coefs$zero,3), print.gap=4)
         
         # Zeileis - Regression Models for Count Data in R, p 19:
         # For the hurdle model, the zero hurdle component describes the probability 
@@ -483,34 +416,41 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
       }
     }
     
-    if (MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
+    MCMC_outp <- list(Bayes_HDIs = NULL, chains = NULL, autocorrels = NULL, SDs = NULL)
+    
+    if (MCMC_options$MCMC & (kind == 'POISSON' | kind == 'NEGBIN')) {
 
-      if (family == 'poisson')
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = family,
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
-
+      if (family == 'poisson') famille <- family
+      
       if (family == 'quasipoisson') {
         message("\n\nFamily = 'quasipoisson' analyses are currently not possible for")
         message("the MCMC analyses. family = 'poisson' will therefore be used instead.\n")
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "poisson",
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
+        famille <- 'poisson'
       }
-
-      if (kind == 'NEGBIN')
-        MCMC_mod <- rstanarm::stan_glm(formMAIN, data = donnesH, family = "neg_binomial_2",
-                                       refresh = 0, algorithm="sampling", iter = Nsamples)
-
-      MCMC_mod_coefs <- cbind(coef(MCMC_mod),
-                              rstanarm::posterior_interval(MCMC_mod, prob= CI_level * .01)[1:length(coef(MCMC_mod)),]   )
-
-      MCMC_mod_coefs <- cbind(MCMC_mod_coefs, exp(MCMC_mod_coefs))
-
-      colnames(MCMC_mod_coefs) <- c('B', 'B_ci_lb', 'B_ci_ub',
-                                    'exp(B)', 'exp(B) ci_lb', 'exp(B) ci_ub')
-
+      
+      if (kind == 'NEGBIN') famille <- "neg_binomial_2"
+        
+      # MCMC_mod <- rstanarm::stan_glm(formule, data = donnesHIER, family = famille,
+      #                                refresh = 0, algorithm="sampling", 
+      #                                iter = MCMC_options$Nsamples)
+      
+      MCMC_outp <- Bayes_HDIs_reg_preds(formule, data = donnesHIER, CI_level,  
+                                        MCMC_options, #noms_list, 
+                                        model_type = 'COUNT', famille = famille)
+      
       if (verbose) {
-        message('\n\nCoefficients from Bayesian MCMC analyses:\n')
-        print(round_boc(MCMC_mod_coefs,3), print.gap=4)
+        message('\n\nBayesian MCMC chains:')
+        message('\n    Number iterations (samples): ', MCMC_options$Nsamples)
+        message('\n    Thinning interval:  ', MCMC_options$thin)
+        message('\n    Burn-in period:  ', MCMC_options$burnin)
+        message('\n    Final chain length (# of samples): ', nrow(MCMC_outp$chains))
+        message('\n    The priors were the default rstanarm::stan_glm function priors')
+        
+        message('\n\nAutocorrelations for the MCMC chains:\n')
+        print(round(MCMC_outp$autocorrels,3), print.gap=4)
+        
+        message('\n\nBayesian HDIs for the raw coefficients & the exponentiated raw coefficients:\n')
+        print(round_boc(MCMC_outp$Bayes_HDIs, round_non_p = 2, round_p = 5), print.gap=4)
       }
     }
     
@@ -530,20 +470,20 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                                       paste(" + offset(",  offset, ")")) )
         
         if (kind == 'POISSON')
-          M1 <- glm(formM1, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
+          M1 <- glm(formM1, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, family = family)
         
         if (kind == 'NEGBIN') {
-          # M1 <- MASS::glm.nb(formM1, data = donnesH, model=TRUE, x=TRUE, y=TRUE)
-          M1 <- glm(formM1, data = donnesH, model=TRUE, x=TRUE, y=TRUE, 
+          # M1 <- MASS::glm.nb(formM1, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE)
+          M1 <- glm(formM1, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, 
                     family = MASS::negative.binomial(1, link="log")) 
         }
         
         if (kind == 'ZINFL')
-          M1 <- pscl::zeroinfl(formM1, data = donnesH, 
+          M1 <- pscl::zeroinfl(formM1, data = donnesHIER, 
                                model=TRUE, x=TRUE, y=TRUE, dist = family)
         
         if (kind == 'HURDLE')
-          M1 <- pscl::hurdle(formM1, data = donnesH, 
+          M1 <- pscl::hurdle(formM1, data = donnesHIER, 
                              model=TRUE, x=TRUE, y=TRUE, dist = family)
         
         if (is.null(offset))
@@ -554,20 +494,20 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
                                       paste(" + offset(",  offset, ")")) )
         
         if (kind == 'POISSON')
-          M2 <- glm(formM2, data = donnesH, model=TRUE, x=TRUE, y=TRUE, family = family)
+          M2 <- glm(formM2, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, family = family)
         
         if (kind == 'NEGBIN') {
-          # M2 <- MASS::glm.nb(formM2, data = donnesH, model=TRUE, x=TRUE, y=TRUE)
-          M2 <- glm(formM2, data = donnesH, model=TRUE, x=TRUE, y=TRUE, 
+          # M2 <- MASS::glm.nb(formM2, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE)
+          M2 <- glm(formM2, data = donnesHIER, model=TRUE, x=TRUE, y=TRUE, 
                     family = MASS::negative.binomial(1, link="log"))
         }
         
         if (kind == 'ZINFL')
-          M2 <- pscl::zeroinfl(formM2, data = donnesH, 
+          M2 <- pscl::zeroinfl(formM2, data = donnesHIER, 
                                model=TRUE, x=TRUE, y=TRUE, dist = family)
         
         if (kind == 'HURDLE')
-          M2 <- pscl::hurdle(formM2, data = donnesH, 
+          M2 <- pscl::hurdle(formM2, data = donnesHIER, 
                              model=TRUE, x=TRUE, y=TRUE, dist = family)
         
         if (kind == 'POISSON' | kind == 'NEGBIN') {
@@ -592,10 +532,7 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
           df_comps <- abs(M2_sum$df.residual - M1_sum$df.residual)
           
           p <- pchisq(diff_logliks, df = df_comps, lower.tail = FALSE) 
-          # message('\nComparisons of the current model against the previous model:\n')
-          # message('\n   Difference in the log likelihoods = ', round(diff_logliks,3), 
-          #         '    df = ', df_comps, '     p = ' , round(p,8), '\n\n')
-          
+
           LR_tests <- rbind(LR_tests, c(diff_logliks, df_comps, p))
         }
       }
@@ -611,64 +548,64 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     if (verbose & (kind == 'POISSON' | kind == 'NEGBIN')) {
       message("\n\nRao's score test (Lagrange Multiplier test):\n")
       # useful to determine whether the Poisson model is appropriate for the data
-      print(suppressWarnings(anova(modelMAIN, test = 'Rao')))
+      print(suppressWarnings(anova(model, test = 'Rao')))
       
       message('\n\nCorrelations of Parameter Estimates:\n')
-      print(round_boc(modelMAINsum$correlation,3), print.gap=4)
+      print(round_boc(modelsum$correlation,3), print.gap=4)
     }
   }
   
   
   # modeldata
-  if (kind == 'POISSON')  modeldata <- modelMAIN$data
+  if (kind == 'POISSON')  modeldata <- model$data
   
   if (kind == 'NEGBIN') {
     
     if (is.null(offset)) {
       
-      modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
+      modeldata <- data.frame(model$y, model$x[,2:ncol(model$x)])
       
-      colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
+      colnames(modeldata) <- c(DV,colnames(model$x)[2:ncol(model$x)])
     }
     
     if (!is.null(offset)) {
       
-      modeldata <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)], modelMAIN$offset)
+      modeldata <- data.frame(model$y, model$x[,2:ncol(model$x)], model$offset)
       
-      colnames(modeldata) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)], offset)
+      colnames(modeldata) <- c(DV,colnames(model$x)[2:ncol(model$x)], offset)
     }
   }
   
   if (kind == 'ZINFL' | kind == 'HURDLE') {
-    # modeldata <- data.frame(modelMAIN$y, modelMAIN$x$zero[,2:ncol(modelMAIN$x$zero)])
-    # colnames(modeldata) <- c(DV,colnames(modelMAIN$x$zero)[2:ncol(modelMAIN$x$zero)])
-    modeldata <- modelMAIN$model
+    # modeldata <- data.frame(model$y, model$x$zero[,2:ncol(model$x$zero)])
+    # colnames(modeldata) <- c(DV,colnames(model$x$zero)[2:ncol(model$x$zero)])
+    modeldata <- model$model
     
     if (!is.null(offset))  colnames(modeldata)[ncol(modeldata)] <- offset
   }
   
-  modeldata$predicted <- modelMAIN$fitted.values
+  modeldata$predicted <- model$fitted.values
   
   
-  # modelcoefs <- modelMAINsum$coefs
-  modelcoefs <- modelMAINsum$coefficients
+  # modelcoefs <- modelsum$coefs
+  modelcoefs <- modelsum$coefficients
   
   
   # variable correlations - using model data with dummy coded factor variables (all numeric)
   if (kind == 'POISSON' | kind == 'NEGBIN') {
-    modeldataN <- data.frame(modelMAIN$y, modelMAIN$x[,2:ncol(modelMAIN$x)])
-    colnames(modeldataN) <- c(DV,colnames(modelMAIN$x)[2:ncol(modelMAIN$x)])
+    modeldataN <- data.frame(model$y, model$x[,2:ncol(model$x)])
+    colnames(modeldataN) <- c(DV,colnames(model$x)[2:ncol(model$x)])
   }
   if (kind == 'ZINFL' | kind == 'HURDLE') {
-    modeldataN <- data.frame(modelMAIN$y, modelMAIN$x$zero[,2:ncol(modelMAIN$x$zero)])
-    colnames(modeldataN) <- c(DV,colnames(modelMAIN$x$zero)[2:ncol(modelMAIN$x$zero)])
+    modeldataN <- data.frame(model$y, model$x$zero[,2:ncol(model$x$zero)])
+    colnames(modeldataN) <- c(DV,colnames(model$x$zero)[2:ncol(model$x$zero)])
   }
   modeldatacorrels <- cor(modeldataN)
   
   
   # casewise diagnostics
-  modeldata$residuals_raw <-          resid(modelMAIN, type='response')
-  modeldata$residuals_pearson <-      resid(modelMAIN, type='pearson')
+  modeldata$residuals_raw <-          resid(model, type='response')
+  modeldata$residuals_pearson <-      resid(model, type='pearson')
   
   if (kind == 'ZINFL' | kind == 'HURDLE') {
     modeldata$residuals_pearson_std <-  NULL
@@ -681,56 +618,51 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     modeldata$leverage <-               NULL
     modeldata$covariance_ratios <-      NULL
   } else { 
-    modeldata$residuals_pearson_std <-  rstandard(modelMAIN, type='pearson') 
-    modeldata$residuals_deviance <-     resid(modelMAIN, type='deviance')
-    modeldata$residuals_deviance_std <- rstandard(modelMAIN, type='deviance')
-    modeldata$residuals_quantile <-     quantile_residuals(modelMAIN)
-    modeldata$cooks_distance <-         cooks.distance(modelMAIN)
-    modeldata$dfbeta <-                 dfbeta(modelMAIN)
-    modeldata$dffit <-                  dffits(modelMAIN)
-    modeldata$leverage <-               hatvalues(modelMAIN)
-    modeldata$covariance_ratios <-      covratio(modelMAIN)
+    modeldata$residuals_pearson_std <-  rstandard(model, type='pearson') 
+    modeldata$residuals_deviance <-     resid(model, type='deviance')
+    modeldata$residuals_deviance_std <- rstandard(model, type='deviance')
+    modeldata$residuals_quantile <-     quantile_residuals(model)
+    modeldata$cooks_distance <-         cooks.distance(model)
+    modeldata$dfbeta <-                 dfbeta(model)
+    modeldata$dffit <-                  dffits(model)
+    modeldata$leverage <-               hatvalues(model)
+    modeldata$covariance_ratios <-      covratio(model)
   }
   
-  collin_diags <- Collinearity(model.matrix(modelMAIN), verbose=FALSE)
+  collin_diags <- Collinearity(model.matrix(model), verbose=FALSE)
   
   if (verbose) {			
-    message('\n\nVariable correlation matrix:\n')
+    message('\n\nPredictor variable correlation matrix:\n')
     print(round(modeldatacorrels,3), print.gap=4)
     
-    #	print(round(cor(modeldata[,c(DV,preds)]),3), print.gap=4)	
-    # print(round(cor(modeldata[,c(DV,names(modelMAIN$coefficients)[-1])]),3), print.gap=4)		
-    
-    message('\n\nCollinearity Diagnostics:\n')
-    print(round(collin_diags$VIFtol, 3), print.gap=4)
-    message('\nThe mean Variance Inflation Factor = ', round(mean(collin_diags$VIFtol[,2]),3))
-    message('\nMulticollinearity is said to exist when VIF values are > 5, or when Tolerance values')
-    message('are < 0.1. Multicollinearity may be biasing a regression model, and there is reason')
-    message('for serious concern, when VIF values are greater than 10.\n\n')
-    print(round(collin_diags$CondInd,3), print.gap=4)
-    message('\nThe coefficients for the Intercept and for the predictors are the Variance Proportions.')
-    message('\nEigenvalues that differ greatly in size suggest multicollinearity. Multicollinearity is')
-    message('said to exist when the largest condition index is between 10 and 30, and evidence for')
-    message('the problem is strong when the largest condition index is > 30. Multicollinearity is')
-    message('also said to exist when the Variance Proportions (in the same row) for two variables are')
-    message('above .80 and when the corresponding condition index for a dimension is higher than 10 to 30.\n\n')
-  }    
-  
+    message('\n\nCollinearity Diagnostics:')
+    VIFtol_messages(collin_diags$VIFtol[,2])
+    CondInd_messages(collin_diags$CondInd)
+  }     
+
   
   if (kind == 'ZINFL' | kind == 'HURDLE') {
     
-    diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(5, 9))
+    diagnostics_plots(model=model, modeldata=modeldata, plot_diags_nums=c(5, 9))
     
   } else {
     
     if (plot_type == 'residuals') 
       
-      diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(8, 9, 10, 11))
+      diagnostics_plots(model=model, modeldata=modeldata, plot_diags_nums=c(8, 9, 10, 11))
     
     if (plot_type == 'diagnostics')
       
-      diagnostics_plots(modelMAIN=modelMAIN, modeldata=modeldata, plot_diags_nums=c(12, 13, 14, 15))
+      diagnostics_plots(model=model, modeldata=modeldata, plot_diags_nums=c(12, 13, 14, 15))
+    
+    if (plot_type == 'Bayes_HDI' & MCMC_options$MCMC & !is.null(MCMC_outp$chain)) 
+      
+      Bayes_HDI_plot(chain_dat = MCMC_outp$chains, 
+                     Bayes_HDIs = MCMC_outp$Bayes_HDIs,
+                     CI_level = CI_level, # SDs = xx$SDs[c(preds)],
+                     HDI_plot_est_type = MCMC_options$HDI_plot_est_type)
   }
+  
   
   
   if (GoF_model_types) {
@@ -738,34 +670,34 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
     
     preds <- unlist(hierarchical[1])
     
-    donnesH <- donnesMOD[,c(DV,preds,offset)]
+    donnesHIER <- donnes[,c(DV,preds,offset)]
     
     if (is.null(offset))
-      formMAIN <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
+      formule <- as.formula(paste(DV, paste(preds, collapse=" + "), sep=" ~ "))
     
     if (!is.null(offset))
-      formMAIN <- as.formula( paste(paste(DV, paste(preds, collapse=" + "), sep=" ~ "), 
+      formule <- as.formula( paste(paste(DV, paste(preds, collapse=" + "), sep=" ~ "), 
                                     paste(" + offset(",  offset, ")")) )
     
-    model_pois <- glm(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, family='poisson')
+    model_pois <- glm(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, family='poisson')
     GoFs_pois <- GoF_stats(model = model_pois)
     
-    model_quasipois <- glm(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, family='quasipoisson')
+    model_quasipois <- glm(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, family='quasipoisson')
     GoFs_quasipois <- GoF_stats(model = model_quasipois)
     
-    model_negbin <- MASS::glm.nb(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE)
+    model_negbin <- MASS::glm.nb(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE)
     GoFs_negbin <- GoF_stats(model = model_negbin)
     
-    model_zinfl_poisson <- pscl::zeroinfl(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
+    model_zinfl_poisson <- pscl::zeroinfl(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
     GoFs_zinfl_poisson <- GoF_stats(model = model_zinfl_poisson)
     
-    model_zinfl_negbin <- pscl::zeroinfl(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
+    model_zinfl_negbin <- pscl::zeroinfl(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
     GoFs_zinfl_negbin <- GoF_stats(model = model_zinfl_negbin)
     
-    model_hurdle_poisson <- pscl::hurdle(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
+    model_hurdle_poisson <- pscl::hurdle(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, dist='poisson')
     GoFs_hurdle_poisson <- GoF_stats(model = model_hurdle_poisson)
     
-    model_hurdle_negbin <- pscl::hurdle(formMAIN, data=donnesH, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
+    model_hurdle_negbin <- pscl::hurdle(formule, data=donnesHIER, model=TRUE, x=TRUE, y=TRUE, dist='negbin')
     GoFs_hurdle_negbin <- GoF_stats(model = model_hurdle_negbin)
     
     GoFs <- rbind(GoFs_pois, GoFs_quasipois, GoFs_negbin, GoFs_zinfl_poisson, 
@@ -785,16 +717,17 @@ COUNT_REGRESSION <- function (data, DV, forced=NULL, hierarchical=NULL,
   }
   
   
-  # add, if any, factor variables in data to modeldata 
-  # (because lm changes names & types and the original variables are needed for PLOTMODEL)
-  # factor_variables <- names(modelMAIN$model[sapply(modelMAIN$model, is.factor)])
-  factor_variables <- list_xlevels <- names(modelMAIN$xlevels)
-  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnesMOD[,factor_variables]
+  # add, if any, factor variables in data to modeldata, for PLOTMODEL)
+  # factor_variables <- names(model$model[sapply(model$model, is.factor)])
+  factor_variables <- list_xlevels <- names(model$xlevels)
+  if (!is.null(factor_variables))  modeldata[factor_variables] <- donnes[,factor_variables]
   
   
-  output <- list(modelMAIN=modelMAIN, modelMAINsum=modelMAINsum,
+  output <- list(model=model, modelsum=modelsum,
                  modeldata=modeldata, modelcoefs=modelcoefs,
-                 collin_diags=collin_diags, family=family, kind=kind, GoFs=GoFs)
+                 collin_diags=collin_diags, family=family, kind=kind, GoFs=GoFs,
+                 chain_dat = MCMC_outp$chains,
+                 Bayes_HDIs = MCMC_outp$Bayes_HDIs) # noms_list = noms_list)
   
   class(output) <- "COUNT_REGRESSION"
   

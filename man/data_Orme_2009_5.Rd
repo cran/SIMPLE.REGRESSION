@@ -10,6 +10,13 @@ Orme, J. G., & Combs-Orme, T. (2009). \emph{Multiple Regression With Discrete
         Dependent Variables.} Oxford University Press.
 }
 \examples{
-COUNT_REGRESSION(data=data_Orme_2009_5, DV='NumberAdopted', forced=c('Married','zParentRole'))
+head(data_Orme_2009_5)
+\donttest{
+# for Orme, 2009, p. 175: negative binomial regression with an offset variable
+COUNT_REGRESSION(data=data_Orme_2009_5, DV='NumberAdopted', 
+                 forced=c('Married','zParentRole'), 
+                 model_type = 'negbin', 
+                 offset='lnYearsFostered')
+}
 }
 
